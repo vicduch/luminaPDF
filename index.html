@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LuminaPDF Reader</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+      }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600&family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+        font-weight: 300; /* Light font for UI */
+      }
+      .serif-text {
+        font-family: 'Merriweather', serif;
+      }
+      
+      /* PDF Viewer Canvas Resets */
+      .react-pdf__Page__canvas {
+        margin: 0 auto;
+        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        display: block;
+      }
+      .react-pdf__Page__textContent {
+        display: none !important; /* Hide text layer for cleaner look unless selection is strictly needed, keeping it minimal */
+      }
+      /* Link Annotations */
+      .react-pdf__Page__annotations {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        pointer-events: none;
+      }
+      .react-pdf__Page__annotations > * {
+        pointer-events: auto;
+        cursor: pointer;
+      }
+      /* Hide the yellow highlight of links but keep them clickable */
+      .react-pdf__Page__annotations .linkAnnotation a {
+        display: block;
+        height: 100%;
+        width: 100%;
+      }
+      .react-pdf__Page__annotations section {
+         position: absolute;
+      }
+      
+      /* Smooth transitions for animations */
+      .fly-enter {
+        opacity: 0;
+        transform: translateY(10px) scale(0.98);
+      }
+      .fly-enter-active {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        transition: opacity 300ms cubic-bezier(0.34, 1.56, 0.64, 1), transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+      
+      /* New Pop-in Animation for Floating Menus */
+      @keyframes popIn {
+        0% { opacity: 0; transform: translate(-50%, 10px) scale(0.95); }
+        100% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+      }
+      .animate-pop-in {
+        animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+      }
+
+      /* Outline (Table of Contents) Styling for Indentation */
+      .react-pdf__Outline {
+        list-style: none;
+        padding: 0;
+      }
+      .react-pdf__Outline__item {
+        list-style: none;
+      }
+      /* Nested items indentation */
+      .react-pdf__Outline__item > ul {
+        padding-left: 1.25rem; /* Indent sub-items */
+        border-left: 1px solid rgba(150, 150, 150, 0.2);
+        margin-left: 0.5rem;
+        margin-top: 0.25rem;
+        margin-bottom: 0.25rem;
+      }
+      .react-pdf__Outline__item > a {
+        display: block;
+        padding: 0.35rem 0.5rem;
+        text-decoration: none;
+        color: inherit;
+        border-radius: 0.375rem;
+        transition: all 0.2s ease;
+        font-size: 0.85rem;
+        line-height: 1.4;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.33.0",
+    "react-pdf/": "https://esm.sh/react-pdf@^10.2.0/",
+    "react-pdf": "https://esm.sh/react-pdf@^10.2.0",
+    "pdfjs-dist/": "https://esm.sh/pdfjs-dist@4.8.69/",
+    "pdfjs-dist": "https://esm.sh/pdfjs-dist@4.8.69"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

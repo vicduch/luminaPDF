@@ -1,0 +1,5 @@
+{
+  "name": "LuminaPDF",
+  "description": "A sophisticated, lightweight PDF reader with multiple themes, dual-page view, and Gemini AI integration for content summarization.",
+  "requestFramePermissions": []
+}
