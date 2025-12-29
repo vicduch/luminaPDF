@@ -14,8 +14,9 @@ import {
   ChevronUp,
   List,
   Scan,
-  FolderOpen,
-  MessageSquare
+  MessageSquare,
+  Home,
+  FolderSearch
 } from './Icons';
 import { ToolbarProps, ViewMode, AppTheme, ScrollMode } from '../types';
 import ThemeSelector from './ThemeSelector';
@@ -95,7 +96,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
           className="p-2 rounded-md hover:bg-black/5 dark:hover:bg-white/10 transition flex items-center gap-2"
           title="Accueil"
         >
-          <FolderOpen size={20} />
+          <Home size={20} />
         </button>
 
         {file && (
@@ -111,7 +112,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         {/* Simplified Open Button - REMOVED since Home button covers it essentially, but kept for direct access if needed, OR merged. Let's start with replacing it or keeping it next to home */}
         <label className="cursor-pointer p-2 rounded-md hover:bg-black/5 dark:hover:bg-white/10 transition flex items-center gap-2" title="Ouvrir un fichier PDF">
           <input type="file" accept="application/pdf" onChange={onFileChange} className="hidden" />
-          <FileText size={20} />
+          <FolderSearch size={20} />
         </label>
       </div>
 

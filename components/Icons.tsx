@@ -40,7 +40,9 @@ import {
   Clock,
   HardDrive,
   LogIn,
-  LogOut
+  LogOut,
+  Home,
+  FolderSearch
 } from 'lucide-react';
 
 export {
@@ -85,5 +87,7 @@ export {
   Clock,
   HardDrive,
   LogIn,
-  LogOut
+  LogOut,
+  Home,
+  FolderSearch
 };
