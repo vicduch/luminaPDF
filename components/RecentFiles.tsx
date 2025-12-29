@@ -121,20 +121,31 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme }) => {
     };
 
     const handleDriveOpen = async () => {
+        // Si l'utilisateur n'est pas connecté, rediriger vers la connexion Google
+        if (!user) {
+            try {
+                await signInWithGoogle();
+                // La page va se recharger après le login, donc on s'arrête ici
+                return;
+            } catch (error) {
+                console.error("Erreur de connexion:", error);
+                alert("Veuillez d'abord vous connecter pour accéder à Google Drive.");
+                return;
+            }
+        }
+
         try {
+            console.log("Tentative d'ouverture de Google Drive...");
             const driveFile = await openDrivePicker();
+
             if (driveFile) {
+                console.log("Fichier sélectionné:", driveFile.name);
                 // Download content
                 const blob = await downloadDriveFile(driveFile);
                 const file = new File([blob], driveFile.name, { type: driveFile.mimeType });
 
-                // Add to Recents (Cloud + Local) via onFileSelect -> Update persistence in App.tsx
-                // Note: App.tsx handles persistence. We just pass the file.
-                // But we might want to attach metadata that it came from Drive?
-                // For now, treat as new file.
                 onFileSelect(file);
 
-                // Also explicitly save to Cloud "Recent" if logged in
                 if (user) {
                     await upsertRecentFile({
                         name: driveFile.name,
@@ -143,14 +154,26 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme }) => {
                         metadata: {
                             size: blob.size,
                             type: driveFile.mimeType,
-                            driveId: driveFile.id // Save Drive ID for future re-fetch
+                            driveId: driveFile.id
                         }
                     });
                 }
             }
-        } catch (error) {
-            console.error("Drive open failed:", error);
-            alert("Impossible d'ouvrir le fichier Google Drive. Vérifiez les permissions.");
+        } catch (error: any) {
+            console.error("Détails de l'erreur Drive:", error);
+
+            let message = "Impossible d'ouvrir Google Drive.";
+            if (error?.error === "idpiframe_initialization_failed") {
+                message += "\n\nVérifiez que les COOKIES TIERS sont autorisés dans votre navigateur et que l'Origine JavaScript est bien https://luminapdf.vercel.app dans Google Cloud.";
+            } else if (error?.details) {
+                message += "\nDétails : " + error.details;
+            } else if (error?.message) {
+                message += "\n" + error.message;
+            } else {
+                message += "\nConsultez la console (F12) pour plus de détails.";
+            }
+
+            alert(message);
         }
     };
 

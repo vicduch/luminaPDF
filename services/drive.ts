@@ -28,25 +28,46 @@ export const initGoogleDrive = () => {
             return;
         }
 
+        console.log("Initialisation des scripts Google...");
+
         const handleGapiLoad = () => {
-            window.gapi.load('client:picker', async () => {
-                await window.gapi.client.init({
-                    apiKey: API_KEY, // Optional for picker but good for client
-                    discoveryDocs: DISCOVERY_DOCS,
-                });
-                gapiInited = true;
-                if (gisInited) resolve();
+            console.log("GAPI chargé, initialisation du client...");
+            window.gapi.load('client:picker', {
+                callback: async () => {
+                    try {
+                        await window.gapi.client.init({
+                            apiKey: API_KEY,
+                            discoveryDocs: DISCOVERY_DOCS,
+                        });
+                        gapiInited = true;
+                        console.log("GAPI Client prêt.");
+                        if (gisInited) resolve();
+                    } catch (err) {
+                        console.error("Erreur GAPI init:", err);
+                        reject(err);
+                    }
+                },
+                onerror: (err: any) => {
+                    console.error("Erreur chargement Picker:", err);
+                    reject(new Error("Échec du chargement de l'API Picker"));
+                }
             });
         };
 
         const handleGisLoad = () => {
-            tokenClient = window.google.accounts.oauth2.initTokenClient({
-                client_id: CLIENT_ID,
-                scope: SCOPES,
-                callback: '', // defined at request time
-            });
-            gisInited = true;
-            if (gapiInited) resolve();
+            console.log("GIS (Identity) chargé.");
+            try {
+                tokenClient = window.google.accounts.oauth2.initTokenClient({
+                    client_id: CLIENT_ID,
+                    scope: SCOPES,
+                    callback: '', // défini plus tard
+                });
+                gisInited = true;
+                if (gapiInited) resolve();
+            } catch (err) {
+                console.error("Erreur GIS init:", err);
+                reject(err);
+            }
         };
 
         loadScript('https://apis.google.com/js/api.js', handleGapiLoad);
