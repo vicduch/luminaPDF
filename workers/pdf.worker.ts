@@ -1,130 +1,225 @@
+/**
+ * pdf.worker.ts - PDF Rendering Worker Farm
+ *
+ * This worker handles the heavy lifting of PDF rendering.
+ * It uses a custom CanvasFactory to render to OffscreenCanvas.
+ *
+ * Version 3.1: Added DOM Shim to prevent "createElement" errors.
+ */
+
 /// <reference lib="webworker" />
 
 import * as pdfjs from 'pdfjs-dist';
 
-// Worker PDFs.js CDN
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
+// ✅ CRITICAL: PDF.js needs to know where its internal worker is, even when we are inside a custom worker.
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
-declare const self: DedicatedWorkerGlobalScope;
+// ─────────────────────────────────────────────────────────────────────────────
+// DOM SHIM
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * PDF.js (even on the API side) sometimes tries to access the DOM for:
+ * 1. Creating temporary canvases for pattern/image processing
+ * 2. Font loading and measurements
+ * Since Workers don't have a DOM, we provide a minimal shim.
+ */
+if (typeof self !== 'undefined' && !(self as any).document) {
+    (self as any).document = {
+        createElement: (name: string) => {
+            if (name === 'canvas') {
+                return new OffscreenCanvas(1, 1);
+            }
+            return {
+                style: {},
+                appendChild: () => { },
+                removeChild: () => { },
+                setAttribute: () => { },
+                getAttribute: () => null,
+            };
+        },
+        documentElement: {
+            style: {}
+        },
+        getElementsByTagName: () => [],
+    };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TYPES
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface RenderTileJob {
+    id: string;
+    pageIndex: number;
+    tileRect: { x: number; y: number; width: number; height: number };
+    scale: number;
+    tileSize: { width: number; height: number };
+}
+
+interface CanvasAndContext {
+    canvas: OffscreenCanvas;
+    context: OffscreenCanvasRenderingContext2D | null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────────────────────────────
 
 let pdfDoc: pdfjs.PDFDocumentProxy | null = null;
 const pageCache = new Map<number, pdfjs.PDFPageProxy>();
 
-console.log("Worker: Render Farm Worker v2 (ArrayBuffer mode)");
+// ─────────────────────────────────────────────────────────────────────────────
+// CANVAS FACTORY
+// ─────────────────────────────────────────────────────────────────────────────
+
+const canvasFactory: any = {
+    create(width: number, height: number): CanvasAndContext {
+        const canvas = new OffscreenCanvas(Math.max(1, width), Math.max(1, height));
+        const context = canvas.getContext('2d', { alpha: false }); // Performance: Opaque
+        return { canvas, context: context as any };
+    },
+
+    reset(canvasAndContext: CanvasAndContext, width: number, height: number): void {
+        canvasAndContext.canvas.width = Math.max(1, width);
+        canvasAndContext.canvas.height = Math.max(1, height);
+    },
+
+    destroy(canvasAndContext: CanvasAndContext): void {
+        canvasAndContext.canvas.width = 1;
+        canvasAndContext.canvas.height = 1;
+        (canvasAndContext as any).canvas = null;
+        (canvasAndContext as any).context = null;
+    },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MESSAGE HANDLER
+// ─────────────────────────────────────────────────────────────────────────────
 
 self.onmessage = async (e: MessageEvent) => {
     const { type, data } = e.data;
 
-    if (type === 'LOAD_DOCUMENT') {
-        const url = typeof data === 'string' ? data : data?.url;
-        console.log("Worker: Loading document via fetch:", url);
+    try {
+        switch (type) {
+            case 'LOAD_DOCUMENT':
+                await handleLoadDocument(data);
+                break;
 
-        if (!url) {
-            self.postMessage({ type: 'DOCUMENT_ERROR', error: "No URL provided" });
-            return;
+            case 'RENDER_TILE':
+                await handleRenderTile(data as RenderTileJob);
+                break;
+
+            case 'CLEANUP':
+                await cleanupDocument();
+                break;
         }
-
-        try {
-            if (pdfDoc) {
-                pdfDoc.destroy();
-                pageCache.clear();
-            }
-
-            // ✅ Contournement : On fetch le PDF et on passe les données binaires
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const arrayBuffer = await response.arrayBuffer();
-
-            console.log("Worker: Fetched", arrayBuffer.byteLength, "bytes. Now parsing...");
-
-            // Custom CanvasFactory for Worker environment
-            const canvasFactory = {
-                create: function (width: number, height: number) {
-                    if (width <= 0 || height <= 0) {
-                        throw new Error("Invalid canvas size");
-                    }
-                    const canvas = new OffscreenCanvas(width, height);
-                    const context = canvas.getContext("2d");
-                    return { canvas, context };
-                },
-                reset: function (canvasAndContext: any, width: number, height: number) {
-                    canvasAndContext.canvas.width = width;
-                    canvasAndContext.canvas.height = height;
-                },
-                destroy: function (canvasAndContext: any) {
-                    canvasAndContext.canvas.width = 0;
-                    canvasAndContext.canvas.height = 0;
-                    canvasAndContext.canvas = null;
-                    canvasAndContext.context = null;
-                },
-            };
-
-            // ✅ On passe l'ArrayBuffer ET la factory
-            const loadingTask = pdfjs.getDocument({
-                data: arrayBuffer,
-                canvasFactory
-            } as any);
-
-            pdfDoc = await loadingTask.promise;
-
-            // On récupère les dimensions de la première page pour caler le viewport
-            const firstPage = await pdfDoc.getPage(1);
-            const viewport = firstPage.getViewport({ scale: 1.0 });
-
-            console.log("Worker: PDF loaded!", pdfDoc.numPages, "pages. Size:", viewport.width, "x", viewport.height);
-
-            self.postMessage({
-                type: 'DOCUMENT_LOADED',
-                numPages: pdfDoc.numPages,
-                width: viewport.width,
-                height: viewport.height
-            });
-        } catch (err: any) {
-            console.error('Worker: PDF Loading Error:', err);
-            self.postMessage({ type: 'DOCUMENT_ERROR', error: err.message });
-        }
-    }
-
-    if (type === 'RENDER_TILE') {
-        if (!pdfDoc) {
-            self.postMessage({ type: 'TILE_ERROR', id: data.id, error: "No document loaded" });
-            return;
-        }
-        try {
-            const bitmap = await renderTile(data);
-            self.postMessage({ type: 'TILE_READY', id: data.id, bitmap }, [bitmap]);
-        } catch (err: any) {
-            self.postMessage({ type: 'TILE_ERROR', id: data.id, error: err.message });
-        }
+    } catch (err) {
+        console.error(`[Worker] Error processing ${type}:`, err);
     }
 };
 
-async function renderTile(job: any): Promise<ImageBitmap> {
-    const { pageIndex, tileRect, scale, tileSize } = job;
+// ─────────────────────────────────────────────────────────────────────────────
+// HANDLERS
+// ─────────────────────────────────────────────────────────────────────────────
 
-    let page: pdfjs.PDFPageProxy;
-    if (pageCache.has(pageIndex)) {
-        page = pageCache.get(pageIndex)!;
-    } else {
-        page = await pdfDoc!.getPage(pageIndex + 1);
-        pageCache.set(pageIndex, page);
+async function handleLoadDocument(data: any): Promise<void> {
+    const url = typeof data === 'string' ? data : data?.url;
+    if (!url) return;
+
+    try {
+        if (pdfDoc) await cleanupDocument();
+
+        console.log('[Worker] Fetching PDF:', url);
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+        const arrayBuffer = await response.arrayBuffer();
+
+        const loadingTask = pdfjs.getDocument({
+            data: arrayBuffer,
+            canvasFactory,
+            // Optimization for workers
+            stopAtErrors: false,
+            isEvalAndContextCanBeTainted: true,
+        } as any);
+
+        pdfDoc = await loadingTask.promise;
+
+        // Get first page to find dimensions
+        const firstPage = await pdfDoc.getPage(1);
+        const viewport = firstPage.getViewport({ scale: 1.0 });
+        const { width, height } = viewport;
+
+        // Immediate cleanup of reference page
+        firstPage.cleanup();
+
+        self.postMessage({
+            type: 'DOCUMENT_LOADED',
+            numPages: pdfDoc.numPages,
+            width,
+            height
+        });
+
+    } catch (err) {
+        console.error('[Worker] DOCUMENT_LOAD failed:', err);
+        self.postMessage({
+            type: 'DOCUMENT_ERROR',
+            error: err instanceof Error ? err.message : String(err)
+        });
     }
+}
 
-    const canvas = new OffscreenCanvas(tileSize.width, tileSize.height);
-    const ctx = canvas.getContext('2d') as OffscreenCanvasRenderingContext2D;
+async function handleRenderTile(job: RenderTileJob): Promise<void> {
+    const { id, pageIndex, tileRect, scale, tileSize } = job;
+    if (!pdfDoc) return;
 
-    const viewport = page.getViewport({ scale });
-    const transform: [number, number, number, number, number, number] = [
-        1, 0, 0, 1,
-        -tileRect.x * scale,
-        -tileRect.y * scale
-    ];
+    try {
+        let page = pageCache.get(pageIndex);
+        if (!page) {
+            page = await pdfDoc.getPage(pageIndex + 1);
+            pageCache.set(pageIndex, page);
+        }
 
-    await page.render({
-        canvasContext: ctx as any,
-        viewport,
-        transform
-    }).promise;
+        const canvas = new OffscreenCanvas(tileSize.width, tileSize.height);
+        const ctx = canvas.getContext('2d', { alpha: false });
+        if (!ctx) throw new Error('Failed to get 2D context');
 
-    return canvas.transferToImageBitmap();
+        const viewport = page.getViewport({ scale });
+
+        // Calculate transform to render only the requested tile
+        const transform: [number, number, number, number, number, number] = [
+            1, 0, 0, 1,
+            -tileRect.x * scale,
+            -tileRect.y * scale
+        ];
+
+        await page.render({
+            canvasContext: ctx as any,
+            viewport,
+            transform,
+            canvasFactory, // Pass factory here too for safety
+        } as any).promise;
+
+        const bitmap = canvas.transferToImageBitmap();
+        self.postMessage({ type: 'TILE_READY', id, bitmap }, [bitmap]);
+
+    } catch (err) {
+        console.error(`[Worker] TILE_ERROR for ${id}:`, err);
+        self.postMessage({
+            type: 'TILE_ERROR',
+            id,
+            error: err instanceof Error ? err.message : String(err)
+        });
+    }
+}
+
+async function cleanupDocument(): Promise<void> {
+    for (const page of pageCache.values()) {
+        page.cleanup();
+    }
+    pageCache.clear();
+    if (pdfDoc) {
+        await pdfDoc.destroy();
+        pdfDoc = null;
+    }
 }

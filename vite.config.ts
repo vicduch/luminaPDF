@@ -11,6 +11,9 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
     },
     plugins: [react()],
+    worker: {
+      format: 'es', // Force ES format for workers to fix build issue
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
