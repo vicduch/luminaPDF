@@ -1,25 +1,53 @@
-import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
+/**
+ * PdfViewer.tsx - Refactored PDF Viewer Component
+ * 
+ * Key improvements over previous version:
+ * 1. Uses hooks for zoom logic (cleaner separation of concerns)
+ * 2. Proper CSS scaling with instant scroll adjustments
+ * 3. Improved virtualization for continuous scroll mode
+ * 4. No visual jumps during zoom transitions
+ * 5. Smooth Low-Fi → Hi-Fi rendering strategy
+ */
+
+import React, { useState, useEffect, useRef, useMemo, useLayoutEffect, useCallback } from 'react';
 import { Document, Page, pdfjs, Outline } from 'react-pdf';
 import { PdfDocumentProps, ViewMode, AppTheme, ScrollMode, Annotation } from '../types';
-import { Loader2, Trash2, X } from './Icons';
+import { Loader2, Trash2 } from './Icons';
+import {
+  getRenderScale,
+  getCssScale,
+  getCanvasFilter as getThemeFilter,
+  getOptimalPixelRatio
+} from '../utils/pdfRenderUtils';
 
-// Set up the worker source. 
+// Set up the worker source
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
+// =====================================================
+// TYPES
+// =====================================================
 
+interface PdfViewerProps extends PdfDocumentProps {
+  onTextExtract: (text: string) => void;
+}
 
-// Render scale steps: render PDF at discrete levels to avoid constant re-renders
-// Intermediate zoom levels are handled via CSS transform
-const getRenderScale = (s: number): number => {
-  // Discrete steps for canvas rendering
-  const steps = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0];
-  // Find the nearest step that is >= current scale (render at higher quality)
-  const higherStep = steps.find(step => step >= s);
-  // If we're above all steps, use the highest
-  return higherStep ?? steps[steps.length - 1];
-};
+// =====================================================
+// ANNOTATION COLORS
+// =====================================================
 
-const PdfViewer: React.FC<PdfDocumentProps & { onTextExtract: (text: string) => void }> = ({
+const ANNOTATION_COLORS = [
+  { label: 'Jaune', value: '#facc15' },
+  { label: 'Vert', value: '#4ade80' },
+  { label: 'Bleu', value: '#60a5fa' },
+  { label: 'Rouge', value: '#f87171' },
+  { label: 'Violet', value: '#c084fc' },
+];
+
+// =====================================================
+// COMPONENT
+// =====================================================
+
+const PdfViewer: React.FC<PdfViewerProps> = ({
   file,
   pageNumber,
   numPages,
@@ -44,42 +72,86 @@ const PdfViewer: React.FC<PdfDocumentProps & { onTextExtract: (text: string) => 
   theme,
   onTextExtract
 }) => {
-  const [containerWidth, setContainerWidth] = useState<number>(0);
-  const [aspectRatio, setAspectRatio] = useState<number>(1.414); // Default A4 ratio roughly
+  // ─────────────────────────────────────────────────────
+  // REFS
+  // ─────────────────────────────────────────────────────
+
   const containerRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null); // Ref for the transformed content
+  const contentRef = useRef<HTMLDivElement>(null);
   const resizeTimeoutRef = useRef<number | null>(null);
-
-  // Active annotation being edited
-  const [activeAnnotationId, setActiveAnnotationId] = useState<string | null>(null);
-
-  // Ref to track popup for click-outside logic
   const activePopupRef = useRef<HTMLDivElement>(null);
-
-  // Track scroll position ratio to restore center
-  const scrollPosRef = useRef({ x: 0.5, y: 0 });
   const prevPageNumberRef = useRef(pageNumber);
+  const prevRenderedScaleRef = useRef(renderedScale);
+  const isFirstRenderRef = useRef(true);
 
-  // Track zoom focal point details for precise restoration
-  const zoomStateRef = useRef<{ targetXRatio: number; targetYRatio: number; screenX: number; screenY: number } | null>(null);
+  // ─────────────────────────────────────────────────────
+  // STATE
+  // ─────────────────────────────────────────────────────
 
-  // Store the cssScale when origin is set, for accurate drift compensation on reset
-  const originCssScaleRef = useRef<number>(1);
+  const [containerWidth, setContainerWidth] = useState<number>(0);
+  const [containerHeight, setContainerHeight] = useState<number>(0);
+  const [aspectRatio, setAspectRatio] = useState<number>(1.414);
+  const [activeAnnotationId, setActiveAnnotationId] = useState<string | null>(null);
+  const [visiblePageRange, setVisiblePageRange] = useState<[number, number]>([1, 5]);
 
-  const [transformOrigin, setTransformOrigin] = useState<string>("top left");
+  // ─────────────────────────────────────────────────────
+  // COMPUTED VALUES
+  // ─────────────────────────────────────────────────────
 
-  const COLORS = [
-    { label: 'Jaune', value: '#facc15' },
-    { label: 'Vert', value: '#4ade80' },
-    { label: 'Bleu', value: '#60a5fa' },
-    { label: 'Rouge', value: '#f87171' },
-    { label: 'Violet', value: '#c084fc' },
-  ];
+  // Calculate render step (discrete canvas resolution)
+  const renderStep = useMemo(() => getRenderScale(renderedScale), [renderedScale]);
 
-  // Click outside to close active annotation logic (replaces the fixed overlay which blocked delete button)
+  // Calculate CSS scale (smooth visual zoom between steps)  
+  const cssScale = useMemo(() => getCssScale(scale, renderStep), [scale, renderStep]);
+
+  // Determine if we're actively zooming (scale differs from rendered)
+  const isZooming = Math.abs(scale - renderedScale) > 0.001;
+
+  // ─────────────────────────────────────────────────────
+  // RESIZE OBSERVER
+  // ─────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const observer = new ResizeObserver((entries) => {
+      if (entries[0]) {
+        const { width, height } = entries[0].contentRect;
+
+        if (resizeTimeoutRef.current) {
+          window.clearTimeout(resizeTimeoutRef.current);
+        }
+
+        resizeTimeoutRef.current = window.setTimeout(() => {
+          setContainerWidth(Math.floor(width));
+          setContainerHeight(Math.floor(height));
+          onContainerDimensions?.({ width, height });
+        }, 100); // Debounce resize events
+      }
+    });
+
+    observer.observe(container);
+
+    return () => {
+      observer.disconnect();
+      if (resizeTimeoutRef.current) {
+        window.clearTimeout(resizeTimeoutRef.current);
+      }
+    };
+  }, [onContainerDimensions]);
+
+  // ─────────────────────────────────────────────────────
+  // CLICK OUTSIDE TO CLOSE ANNOTATION
+  // ─────────────────────────────────────────────────────
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (activeAnnotationId && activePopupRef.current && !activePopupRef.current.contains(event.target as Node)) {
+      if (
+        activeAnnotationId &&
+        activePopupRef.current &&
+        !activePopupRef.current.contains(event.target as Node)
+      ) {
         setActiveAnnotationId(null);
       }
     };
@@ -87,244 +159,161 @@ const PdfViewer: React.FC<PdfDocumentProps & { onTextExtract: (text: string) => 
     if (activeAnnotationId) {
       document.addEventListener('mousedown', handleClickOutside);
     }
+
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [activeAnnotationId]);
 
+  // ─────────────────────────────────────────────────────
+  // SCROLL POSITION MANAGEMENT
+  // ─────────────────────────────────────────────────────
 
-  // Debounced Resize Observer
-  useEffect(() => {
-    const observer = new ResizeObserver((entries) => {
-      if (entries[0]) {
-        // contentRect is the size of the content box (inside padding)
-        const { width, height } = entries[0].contentRect;
-        if (resizeTimeoutRef.current) window.clearTimeout(resizeTimeoutRef.current);
-        resizeTimeoutRef.current = window.setTimeout(() => {
-          // Subtract a small buffer to prevent edge-case flickering
-          setContainerWidth(Math.floor(width));
-          if (onContainerDimensions) onContainerDimensions({ width, height });
-        }, 150);
-      }
-    });
-
-    if (containerRef.current) observer.observe(containerRef.current);
-    return () => {
-      observer.disconnect();
-      if (resizeTimeoutRef.current) window.clearTimeout(resizeTimeoutRef.current);
-    };
-  }, []);
-
-  const [visiblePageRange, setVisiblePageRange] = useState<[number, number]>([1, 5]);
-
-  // Handle Scroll to track focal point AND visible range
-  const handleScroll = () => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const { scrollLeft, scrollTop, scrollWidth, scrollHeight, clientWidth, clientHeight } = container;
-
-    // Disable scroll tracking during zoom interactions to prevent recording unstable "transform" states
-    const isZooming = Math.abs(scale - renderedScale) > 0.001;
-
-    // 1. Track Center (Existing Logic) - ONLY if not zooming
-    if (!isZooming && scrollWidth > 0 && scrollHeight > 0) {
-      const cx = (scrollLeft + clientWidth / 2) / scrollWidth;
-      const cy = (scrollTop + clientHeight / 2) / scrollHeight;
-      scrollPosRef.current = { x: cx, y: cy };
-    }
-
-    // 2. Calculate Visible Range (Virtualization)
-    if (scrollMode === ScrollMode.CONTINUOUS && contentRef.current) {
-      // Estimate average page height + gap based on total scroll height
-      // This is an approximation but fast enough for virtualization
-      const totalHeight = contentRef.current.scrollHeight;
-      const avgPageHeight = totalHeight / numPages;
-
-      if (avgPageHeight > 0) {
-        const startPage = Math.floor(scrollTop / avgPageHeight) + 1;
-        const endPage = Math.ceil((scrollTop + clientHeight) / avgPageHeight);
-
-        // Add buffer of 2 pages before and after
-        const buffer = 2;
-        const safeStart = Math.max(1, startPage - buffer);
-        const safeEnd = Math.min(numPages, endPage + buffer);
-
-        // Only update state if range changes significantly to avoid re-renders
-        setVisiblePageRange(prev => {
-          if (prev[0] !== safeStart || prev[1] !== safeEnd) {
-            return [safeStart, safeEnd];
-          }
-          return prev;
-        });
-      }
-    }
-  };
-
-  // Force update visible range when mode changes
-  useEffect(() => {
-    if (scrollMode === ScrollMode.CONTINUOUS) {
-      setVisiblePageRange([1, Math.min(5, numPages)]);
-      // Trigger a manual scroll check after a tick to set correct range
-      setTimeout(handleScroll, 100);
-    }
-  }, [scrollMode, numPages, scale]);
-
-  // Manage Transform Origin and Zoom State
-  useLayoutEffect(() => {
-    if (!contentRef.current) return;
-
-    const isZooming = Math.abs(scale - renderedScale) > 0.001;
-
-    // Calculate current cssScale for reference
-    const currentRenderStep = getRenderScale(renderedScale);
-    const currentCssScale = scale / currentRenderStep;
-
-    if (isZooming && zoomFocalPoint) {
-      // Set transform origin only at the START of the zoom interaction
-      if (transformOrigin === "top left") {
-        const rect = contentRef.current.getBoundingClientRect();
-
-        // Calculate origin relative to the content's current visual bounding box
-        // This naturally accounts for scroll and any CSS centering
-        const originX = zoomFocalPoint.x - rect.left;
-        const originY = zoomFocalPoint.y - rect.top;
-
-        setTransformOrigin(`${originX}px ${originY}px`);
-
-        // Store the cssScale at origin-set time for accurate drift compensation later
-        originCssScaleRef.current = currentCssScale;
-
-        // Capture ratios relative to THIS stable origin for restoration later
-        zoomStateRef.current = {
-          targetXRatio: originX / rect.width,
-          targetYRatio: originY / rect.height,
-          screenX: zoomFocalPoint.x,
-          screenY: zoomFocalPoint.y
-        };
-      } else {
-        // Origin already set, but update the stored cssScale as zoom progresses
-        originCssScaleRef.current = currentCssScale;
-      }
-    } else if (!isZooming) {
-      // Reset origin when stable, BUT we must compensate for the visual shift
-      // caused by changing origin from (x,y) to (0,0) while scale != 1
-      if (transformOrigin !== "top left") {
-        const originParts = transformOrigin.split('px');
-        if (originParts.length >= 2) {
-          const ox = parseFloat(originParts[0]);
-          const oy = parseFloat(originParts[1]);
-
-          // Use the STORED cssScale (from when origin was active), not current (which is ≈1)
-          const storedCssScale = originCssScaleRef.current;
-
-          // Shift = Origin * (Scale - 1)
-          // If we move origin from O to 0, object moves by O * (S - 1)
-          // We must scroll BY this amount to keep object visually stationary
-          const dx = ox * (storedCssScale - 1);
-          const dy = oy * (storedCssScale - 1);
-
-          if (containerRef.current && (Math.abs(dx) > 1 || Math.abs(dy) > 1)) {
-            containerRef.current.scrollBy({ left: dx, top: dy, behavior: 'instant' });
-          }
-
-          // Apply style immediately to prevent flicker before React render
-          if (contentRef.current) {
-            contentRef.current.style.transformOrigin = "top left";
-          }
-        }
-        setTransformOrigin("top left");
-        originCssScaleRef.current = 1; // Reset stored scale
-      }
-    }
-  }, [scale, renderedScale, zoomFocalPoint, transformOrigin]);
-
-  // Visual Centering Logic: Calculate margins to center content when it's smaller than container
-  // This fixes the "Fit to Screen" left-alignment issue
-  const getCenteringMargins = () => {
-    if (!containerRef.current || !containerWidth) return { x: 0, y: 0 };
-
-    // Calculate expected Visual Width based on scale
-    // This assumes content basically fills the container width at scale 1 (which it does, minus margin)
-    // For Double Mode: it fills full width. For Single: full width.
-    const visualWidth = containerWidth * scale;
-
-    // Check available space
-    const helpW = Math.max(0, (containerRef.current.clientWidth - visualWidth) / 2);
-
-    return { x: helpW, y: 0 };
-  };
-
-  const centering = getCenteringMargins();
-
-  // Restore scroll position when scale or dimensions change (Zoom Logic)
+  /**
+   * This effect handles scroll position restoration after scale changes.
+   * 
+   * CRITICAL: The scroll adjustment for zoom is now handled in App.tsx via useZoom hook
+   * BEFORE the scale state changes. This effect only handles:
+   * 1. Page changes (scroll to top)
+   * 2. Fit to screen (scroll to origin)
+   * 3. Render scale changes (preserve apparent position)
+   */
   useLayoutEffect(() => {
     const container = containerRef.current;
     const content = contentRef.current;
     if (!container || !content) return;
 
-    // 1. Precise Focal Zoom (Pinch, Wheel, or Toolbar zoom with focus)
-    if (zoomStateRef.current) {
-      const { targetXRatio, targetYRatio, screenX, screenY } = zoomStateRef.current;
-      const containerRect = container.getBoundingClientRect();
-
-      // content.offsetWidth/Height are the NEW layout dimensions after renderedScale update
-      const contentW = content.offsetWidth;
-      const contentH = content.offsetHeight;
-
-      const docX = contentW * targetXRatio;
-      const docY = contentH * targetYRatio;
-
-      const targetScreenXRelativeToContainer = screenX - containerRect.left;
-      const targetScreenYRelativeToContainer = screenY - containerRect.top;
-
-      container.scrollTo({
-        left: docX - targetScreenXRelativeToContainer,
-        top: docY - targetScreenYRelativeToContainer,
-        behavior: 'instant'
-      });
-
-      zoomStateRef.current = null;
+    // Skip on first render
+    if (isFirstRenderRef.current) {
+      isFirstRenderRef.current = false;
       prevPageNumberRef.current = pageNumber;
+      prevRenderedScaleRef.current = renderedScale;
       return;
     }
 
-    // 2. Page Change - scroll to top
-    const isPageChange = prevPageNumberRef.current !== pageNumber;
-    if (isPageChange) {
-      container.scrollTo({
-        left: 0,
-        top: 0,
-        behavior: 'instant'
-      });
+    // Case 1: Page change - scroll to top
+    if (prevPageNumberRef.current !== pageNumber) {
+      container.scrollTo({ left: 0, top: 0, behavior: 'instant' });
       prevPageNumberRef.current = pageNumber;
+      prevRenderedScaleRef.current = renderedScale;
       return;
     }
 
-    // 3. Explicit "Fit to Screen" action - scroll to top-left
-    // Note: Visual centering is handled by marginLeft via getCenteringMargins()
-    // We only need to reset scroll position, not calculate center
+    // Case 2: Fit to screen - scroll to origin (centering is via CSS margins)
     if (isFitToScreenAction) {
-      container.scrollTo({
-        left: 0,
-        top: 0,
-        behavior: 'instant'
-      });
-      prevPageNumberRef.current = pageNumber;
+      container.scrollTo({ left: 0, top: 0, behavior: 'instant' });
+      prevRenderedScaleRef.current = renderedScale;
       return;
     }
 
-    // 4. DO NOTHING for normal zoom changes. 
-    // This prevents the "automatic recenter" that users hate when zooming manually.
-    prevPageNumberRef.current = pageNumber;
+    // Case 3: Render scale changed (canvas re-rendered at new resolution)
+    // The visual scale (scale prop) hasn't changed, only the backing rendering quality.
+    // The CSS transform compensates for the size change, so visual size is constant.
+    // We just need to ensure the browser doesn't shift the scroll position due to DOM layout changes.
+    if (prevRenderedScaleRef.current !== renderedScale) {
+      // Just pin the current position to prevent any browser layout readjustment
+      // We trust the browser/useZoom to have the correct position already.
+      // No scaling calculations needed.
+      prevRenderedScaleRef.current = renderedScale;
+    }
+  }, [pageNumber, renderedScale, isFitToScreenAction]);
 
-  }, [renderedScale, containerWidth, pageNumber, isFitToScreenAction]);
+  // ─────────────────────────────────────────────────────
+  // SCROLL HANDLER FOR VIRTUALIZATION
+  // ─────────────────────────────────────────────────────
 
-  const handleDocumentLoadSuccess = async (pdf: any) => {
+  const handleScroll = useCallback(() => {
+    const container = containerRef.current;
+    const content = contentRef.current;
+    if (!container || !content) return;
+
+    // Only virtualize in continuous mode
+    if (scrollMode !== ScrollMode.CONTINUOUS) return;
+
+    const { scrollTop, clientHeight } = container;
+    const totalHeight = content.scrollHeight;
+    const avgPageHeight = totalHeight / Math.max(1, numPages);
+
+    if (avgPageHeight <= 0) return;
+
+    // Calculate visible range
+    const startPage = Math.floor(scrollTop / avgPageHeight) + 1;
+    const endPage = Math.ceil((scrollTop + clientHeight) / avgPageHeight);
+
+    // Add overscan buffer
+    const OVERSCAN = 2;
+    const safeStart = Math.max(1, startPage - OVERSCAN);
+    const safeEnd = Math.min(numPages, endPage + OVERSCAN);
+
+    setVisiblePageRange(prev => {
+      if (prev[0] !== safeStart || prev[1] !== safeEnd) {
+        return [safeStart, safeEnd];
+      }
+      return prev;
+    });
+  }, [scrollMode, numPages]);
+
+  // Reset visible range when mode changes
+  useEffect(() => {
+    if (scrollMode === ScrollMode.CONTINUOUS) {
+      setVisiblePageRange([1, Math.min(7, numPages)]);
+      setTimeout(handleScroll, 100);
+    }
+  }, [scrollMode, numPages, handleScroll]);
+
+  // ─────────────────────────────────────────────────────
+  // PAGE WIDTH CALCULATION
+  // ─────────────────────────────────────────────────────
+
+  const pageWidth = useMemo(() => {
+    if (!containerWidth) return undefined;
+
+    let baseWidth = containerWidth;
+
+    // In double page mode, each page takes half the container
+    if (viewMode === ViewMode.DOUBLE && scrollMode === ScrollMode.PAGED) {
+      baseWidth = (containerWidth - 16) / 2; // 16px gap
+    }
+
+    // Apply render step (not visual scale - that's handled by CSS)
+    return Math.max(100, baseWidth * renderStep);
+  }, [containerWidth, viewMode, scrollMode, renderStep]);
+
+  // Estimated page height for virtualization
+  const estimatedPageHeight = pageWidth ? pageWidth * aspectRatio : 800;
+
+  // ─────────────────────────────────────────────────────
+  // CENTERING MARGINS
+  // ─────────────────────────────────────────────────────
+
+  const centeringMargins = useMemo(() => {
+    if (!containerRef.current || !containerWidth || !pageWidth) {
+      return { left: 0, top: 0 };
+    }
+
+    // Calculate visual width of content
+    const visualWidth = pageWidth * cssScale;
+
+    // Double mode: two pages + gap
+    const totalVisualWidth = viewMode === ViewMode.DOUBLE && scrollMode === ScrollMode.PAGED
+      ? visualWidth * 2 + 16 * cssScale
+      : visualWidth;
+
+    const marginLeft = Math.max(0, (containerWidth - totalVisualWidth) / 2);
+
+    return { left: marginLeft, top: 0 };
+  }, [containerWidth, pageWidth, cssScale, viewMode, scrollMode]);
+
+  // ─────────────────────────────────────────────────────
+  // DOCUMENT HANDLERS
+  // ─────────────────────────────────────────────────────
+
+  const handleDocumentLoadSuccess = useCallback(async (pdf: any) => {
     onLoadSuccess({ numPages: pdf.numPages });
+
     try {
       const metadata = await pdf.getMetadata();
-      if (metadata && metadata.info) {
+      if (metadata?.info) {
         onMetadataLoaded({
           title: metadata.info.Title,
           author: metadata.info.Author,
@@ -337,54 +326,70 @@ const PdfViewer: React.FC<PdfDocumentProps & { onTextExtract: (text: string) => 
     } catch (e) {
       console.error("Failed to load metadata", e);
     }
-  };
+  }, [onLoadSuccess, onMetadataLoaded]);
 
-  const handlePageLoadSuccess = async (page: any) => {
+  const handlePageLoadSuccess = useCallback(async (page: any) => {
     const ratio = page.originalHeight / page.originalWidth;
     setAspectRatio(ratio);
 
-    if (onPageDimensions) {
-      onPageDimensions({ width: page.originalWidth, height: page.originalHeight });
-    }
+    onPageDimensions?.({
+      width: page.originalWidth,
+      height: page.originalHeight
+    });
 
+    // Extract text for current page in paged mode
     if (scrollMode === ScrollMode.PAGED && page.pageNumber === pageNumber) {
       try {
         const textContent = await page.getTextContent();
-        const strings = textContent.items.map((item: any) => item.str);
-        const fullText = strings.join(' ');
+        const fullText = textContent.items.map((item: any) => item.str).join(' ');
         onTextExtract(fullText);
       } catch (e) {
         onTextExtract("");
       }
     }
-  };
+  }, [scrollMode, pageNumber, onPageDimensions, onTextExtract]);
 
-  // Render scale steps: render PDF at discrete levels to avoid constant re-rendering
-  // Intermediate zoom levels are handled via CSS transform
-  const getPageWidth = () => {
-    if (!containerWidth) return undefined;
-    let baseWidth = containerWidth;
-    if (viewMode === ViewMode.DOUBLE && scrollMode === ScrollMode.PAGED) {
-      baseWidth = (baseWidth - 16) / 2;
+  // ─────────────────────────────────────────────────────
+  // ANNOTATION HANDLERS
+  // ─────────────────────────────────────────────────────
+
+  const handlePageClick = useCallback((e: React.MouseEvent, pageNum: number) => {
+    if (!isAnnotationMode) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+    onAddAnnotation(pageNum, x, y);
+  }, [isAnnotationMode, onAddAnnotation]);
+
+  const handleOutlineClick = useCallback(({
+    pageNumber: clickedPage,
+    pageIndex
+  }: {
+    pageNumber?: string | number;
+    pageIndex?: number;
+  }) => {
+    if (clickedPage) {
+      setPageNumber(Number(clickedPage));
+    } else if (pageIndex !== undefined) {
+      setPageNumber(pageIndex + 1);
     }
-    // Use render steps to minimize re-renders during zoom
-    const renderStep = getRenderScale(renderedScale);
-    return Math.max(100, baseWidth * renderStep);
-  };
+  }, [setPageNumber]);
 
-  const getCanvasFilter = () => {
-    switch (theme) {
-      case AppTheme.DARK: return 'invert(0.9) hue-rotate(180deg) contrast(0.8)';
-      case AppTheme.MIDNIGHT: return 'invert(1) hue-rotate(180deg)';
-      case AppTheme.BLUE_NIGHT: return 'invert(0.9) hue-rotate(180deg) contrast(0.85) sepia(0.2)';
-      case AppTheme.FOREST: return 'invert(0.85) hue-rotate(120deg) contrast(0.9) sepia(0.2)';
-      case AppTheme.SEPIA: return 'sepia(0.3) contrast(0.95)';
-      case AppTheme.SOLARIZED: return 'sepia(0.1) contrast(0.95)';
-      default: return 'none';
-    }
-  };
+  // ─────────────────────────────────────────────────────
+  // STYLES
+  // ─────────────────────────────────────────────────────
 
-  const getThemeBackground = () => {
+  const canvasFilter = useMemo(() => getThemeFilter(theme as any), [theme]);
+
+  const filterStyle = useMemo(() => ({
+    filter: canvasFilter,
+    transition: 'filter 0.3s ease',
+    minHeight: estimatedPageHeight ? `${estimatedPageHeight}px` : undefined
+  }), [canvasFilter, estimatedPageHeight]);
+
+  const getThemeBackground = useCallback(() => {
     switch (theme) {
       case AppTheme.LIGHT: return 'bg-white border-gray-200 text-gray-800';
       case AppTheme.SOLARIZED: return 'bg-[#fdf6e3] border-[#eee8d5] text-[#586e75]';
@@ -395,45 +400,17 @@ const PdfViewer: React.FC<PdfDocumentProps & { onTextExtract: (text: string) => 
       case AppTheme.MIDNIGHT: return 'bg-black border-gray-800 text-gray-400';
       default: return 'bg-white border-gray-200 text-gray-800';
     }
-  };
+  }, [theme]);
 
-  // CSS scale compensates for the difference between actual scale and render step
-  // This allows smooth visual zoom while minimizing canvas re-renders
-  const renderStep = getRenderScale(renderedScale);
-  const cssScale = scale / renderStep;
+  // ─────────────────────────────────────────────────────
+  // RENDER ANNOTATIONS
+  // ─────────────────────────────────────────────────────
 
-  const handleOutlineClick = ({ pageNumber: clickedPage, pageIndex }: { pageNumber?: string | number, pageIndex?: number }) => {
-    if (clickedPage) {
-      setPageNumber(Number(clickedPage));
-    } else if (pageIndex !== undefined) {
-      setPageNumber(pageIndex + 1);
-    }
-  };
-
-  const handlePageClick = (e: React.MouseEvent, pageNum: number) => {
-    if (!isAnnotationMode) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    onAddAnnotation(pageNum, x, y);
-  };
-
-  const pageWidth = getPageWidth();
-  const calculatedMinHeight = pageWidth ? pageWidth * aspectRatio : undefined;
-
-  const filterStyle = useMemo(() => ({
-    filter: getCanvasFilter(),
-    transition: 'filter 0.3s ease',
-    minHeight: calculatedMinHeight ? `${calculatedMinHeight}px` : undefined
-  }), [theme, calculatedMinHeight]);
-
-  // --- Annotation Render Helper ---
-  const renderAnnotations = (pageNum: number) => {
+  const renderAnnotations = useCallback((pageNum: number) => {
     const pageNotes = annotations.filter(a => a.pageNumber === pageNum);
 
     return pageNotes.map(note => {
       const isActive = activeAnnotationId === note.id;
-      const borderColor = isActive ? 'border-gray-400' : 'border-white';
 
       return (
         <div
@@ -448,10 +425,12 @@ const PdfViewer: React.FC<PdfDocumentProps & { onTextExtract: (text: string) => 
               setActiveAnnotationId(isActive ? null : note.id);
             }}
             className={`
-                        w-5 h-5 rounded-full shadow-lg border transition-all duration-200 flex items-center justify-center
-                        ${isActive ? 'scale-125 ring-2 ring-blue-500 ring-offset-1 z-50' : 'hover:scale-125 z-40'}
-                        ${borderColor}
-                    `}
+              w-5 h-5 rounded-full shadow-lg border transition-all duration-200 
+              flex items-center justify-center
+              ${isActive
+                ? 'scale-125 ring-2 ring-blue-500 ring-offset-1 z-50 border-gray-400'
+                : 'hover:scale-125 z-40 border-white'}
+            `}
             style={{ backgroundColor: note.color || '#facc15' }}
             title="Ouvrir la note"
             type="button"
@@ -460,17 +439,22 @@ const PdfViewer: React.FC<PdfDocumentProps & { onTextExtract: (text: string) => 
           {isActive && (
             <div
               ref={activePopupRef}
-              className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-64 bg-white rounded-lg shadow-2xl border border-gray-200 p-3 flex flex-col gap-2 animate-in zoom-in-95 duration-200 origin-top cursor-default z-50"
+              className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-64 
+                         bg-white rounded-lg shadow-2xl border border-gray-200 
+                         p-3 flex flex-col gap-2 animate-in zoom-in-95 
+                         duration-200 origin-top cursor-default z-50"
               onClick={(e) => e.stopPropagation()}
               style={{ minWidth: '200px' }}
             >
+              {/* Color picker and delete button */}
               <div className="flex justify-between items-center pb-1 border-b border-gray-100">
                 <div className="flex gap-1.5">
-                  {COLORS.map(c => (
+                  {ANNOTATION_COLORS.map(c => (
                     <button
                       key={c.value}
                       onClick={() => onUpdateAnnotation(note.id, note.text, c.value)}
-                      className={`w-3 h-3 rounded-full hover:scale-125 transition-transform ${note.color === c.value ? 'ring-1 ring-offset-1 ring-gray-400' : ''}`}
+                      className={`w-3 h-3 rounded-full hover:scale-125 transition-transform 
+                                  ${note.color === c.value ? 'ring-1 ring-offset-1 ring-gray-400' : ''}`}
                       style={{ backgroundColor: c.value }}
                       title={c.label}
                     />
@@ -482,7 +466,8 @@ const PdfViewer: React.FC<PdfDocumentProps & { onTextExtract: (text: string) => 
                     onDeleteAnnotation(note.id);
                     setActiveAnnotationId(null);
                   }}
-                  className="text-gray-400 hover:text-red-500 hover:bg-red-50 p-1 rounded transition"
+                  className="text-gray-400 hover:text-red-500 hover:bg-red-50 
+                             p-1 rounded transition"
                   title="Supprimer la note"
                   type="button"
                 >
@@ -490,31 +475,82 @@ const PdfViewer: React.FC<PdfDocumentProps & { onTextExtract: (text: string) => 
                 </button>
               </div>
 
+              {/* Text input */}
               <textarea
                 value={note.text}
                 onChange={(e) => onUpdateAnnotation(note.id, e.target.value)}
-                className="w-full bg-transparent text-sm text-gray-800 focus:outline-none resize-none min-h-[80px] leading-relaxed p-1"
+                className="w-full bg-transparent text-sm text-gray-800 
+                           focus:outline-none resize-none min-h-[80px] 
+                           leading-relaxed p-1"
                 placeholder="Écrivez votre commentaire ici..."
                 autoFocus
               />
 
+              {/* Timestamp */}
               <div className="flex justify-between items-center text-[10px] text-gray-400 pt-1">
                 <span>{new Date(note.createdAt).toLocaleDateString()}</span>
-                <span>{new Date(note.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                <span>
+                  {new Date(note.createdAt).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </span>
               </div>
             </div>
           )}
         </div>
       );
     });
-  };
+  }, [annotations, activeAnnotationId, onUpdateAnnotation, onDeleteAnnotation]);
+
+  // ─────────────────────────────────────────────────────
+  // RENDER PAGE
+  // ─────────────────────────────────────────────────────
+
+  const renderPage = useCallback((pageNum: number, isFirst: boolean = false) => (
+    <div key={`page_${pageNum}`} className="relative group">
+      <div style={filterStyle} className="shadow-xl bg-white relative transition-all">
+        <Page
+          pageNumber={pageNum}
+          scale={1}
+          width={pageWidth}
+          renderTextLayer={false}
+          renderAnnotationLayer={true}
+          onLoadSuccess={isFirst ? handlePageLoadSuccess : undefined}
+          className="bg-white"
+          devicePixelRatio={getOptimalPixelRatio()}
+        />
+
+        {/* Annotation overlay */}
+        {isAnnotationMode && (
+          <div
+            className="absolute inset-0 z-40 cursor-crosshair 
+                       bg-black/5 hover:bg-black/10 transition-colors"
+            onClick={(e) => handlePageClick(e, pageNum)}
+            title="Cliquez pour ajouter une note"
+          />
+        )}
+
+        {/* Annotations */}
+        <div className="absolute inset-0 pointer-events-none z-50">
+          <div className="w-full h-full relative">
+            {renderAnnotations(pageNum)}
+          </div>
+        </div>
+      </div>
+    </div>
+  ), [pageWidth, filterStyle, isAnnotationMode, handlePageClick, handlePageLoadSuccess, renderAnnotations]);
+
+  // ─────────────────────────────────────────────────────
+  // MAIN RENDER
+  // ─────────────────────────────────────────────────────
 
   return (
     <div className="h-full w-full relative">
       <div
-        className="absolute inset-0 overflow-auto"
         ref={containerRef}
         id="pdf-scroll-container"
+        className="absolute inset-0 overflow-auto"
         onScroll={handleScroll}
       >
         {!file ? (
@@ -525,153 +561,93 @@ const PdfViewer: React.FC<PdfDocumentProps & { onTextExtract: (text: string) => 
             <p className="text-lg font-medium">Aucun document ouvert</p>
           </div>
         ) : (
-          // items-start provides a stable coordinate system (0,0) for the scroll container.
-          // The document is centered via mx-auto on the Document component itself.
           <div className="min-h-full flex flex-col items-start justify-center py-4 w-full min-w-max">
             <Document
               file={file}
               onLoadSuccess={handleDocumentLoadSuccess}
-              loading={<div className="flex items-center gap-3 mt-20"><Loader2 className="animate-spin text-blue-500" /></div>}
+              loading={
+                <div className="flex items-center gap-3 mt-20">
+                  <Loader2 className="animate-spin text-blue-500" />
+                </div>
+              }
               error={<div className="mt-20 text-red-500">Erreur de chargement</div>}
               className="flex flex-col shrink-0 mx-auto"
             >
+              {/* Outline Panel */}
               {isOutlineOpen && (
                 <div className={`
-                        fixed left-0 top-16 bottom-0 w-80 border-r z-30 overflow-y-auto p-4 shadow-lg backdrop-blur-sm fly-enter-active
-                        ${getThemeBackground()}
-                    `}>
+                  fixed left-0 top-16 bottom-0 w-80 border-r z-30 
+                  overflow-y-auto p-4 shadow-lg backdrop-blur-sm fly-enter-active
+                  ${getThemeBackground()}
+                `}>
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold uppercase tracking-wider text-xs opacity-70">Sommaire</h3>
+                    <h3 className="font-bold uppercase tracking-wider text-xs opacity-70">
+                      Sommaire
+                    </h3>
                   </div>
-                  <Outline onItemClick={handleOutlineClick} className={`text-sm outline-none`} />
+                  <Outline onItemClick={handleOutlineClick} className="text-sm outline-none" />
                 </div>
               )}
 
+              {/* Content wrapper with CSS transform for zoom */}
               <div
                 ref={contentRef}
                 className={`flex gap-4 h-fit ${scrollMode === ScrollMode.CONTINUOUS ? 'flex-col' : ''}`}
                 style={{
                   transform: `scale(${cssScale})`,
-                  transformOrigin: transformOrigin,
-                  gap: '16px',
-                  // GPU acceleration during zoom for smoother performance
-                  willChange: cssScale !== 1 ? 'transform' : 'auto',
-                  // Smooth transition only when stabilizing (not during active zoom)
-                  transition: Math.abs(cssScale - 1) < 0.01 ? 'transform 0.1s ease-out' : 'none',
-                  // Apply calculated centering
-                  marginLeft: `${centering.x}px`,
-                  marginTop: `${centering.y}px`
+                  transformOrigin: 'top left',
+                  // Inverse scale the gap so it remains visually 16px constant
+                  gap: `${16 / cssScale}px`,
+                  // GPU acceleration during zoom
+                  willChange: isZooming ? 'transform' : 'auto',
+                  // Smooth transition only when stabilizing
+                  transition: !isZooming && Math.abs(cssScale - 1) < 0.05
+                    ? 'transform 0.15s ease-out'
+                    : 'none',
+                  // Centering margins
+                  marginLeft: `${centeringMargins.left}px`,
+                  marginTop: `${centeringMargins.top}px`
                 }}
               >
                 {scrollMode === ScrollMode.PAGED ? (
+                  // PAGED MODE: Single or Double page
                   <>
-                    <div className="relative group">
-                      <div style={filterStyle} className="shadow-2xl bg-white relative transition-all">
-                        <Page
-                          pageNumber={pageNumber}
-                          scale={1}
-                          width={pageWidth}
-                          renderTextLayer={false}
-                          renderAnnotationLayer={true}
-                          onLoadSuccess={handlePageLoadSuccess}
-                          className="bg-white"
-                          devicePixelRatio={Math.min(2, window.devicePixelRatio)}
-                        />
-
-                        {isAnnotationMode && (
-                          <div
-                            className="absolute inset-0 z-40 cursor-crosshair bg-black/5 hover:bg-black/10 transition-colors"
-                            onClick={(e) => handlePageClick(e, pageNumber)}
-                            title="Cliquez pour ajouter une note"
-                          />
-                        )}
-
-                        <div className="absolute inset-0 pointer-events-none z-50">
-                          <div className="w-full h-full relative">
-                            {renderAnnotations(pageNumber)}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    {renderPage(pageNumber, true)}
 
                     {viewMode === ViewMode.DOUBLE && pageNumber + 1 <= numPages && (
-                      <div className="relative group hidden lg:block">
-                        <div style={filterStyle} className="shadow-2xl bg-white relative transition-all">
-                          <Page
-                            pageNumber={pageNumber + 1}
-                            scale={1}
-                            width={pageWidth}
-                            renderTextLayer={false}
-                            renderAnnotationLayer={true}
-                            className="bg-white"
-                            devicePixelRatio={Math.min(2, window.devicePixelRatio)}
-                          />
-                          {isAnnotationMode && (
-                            <div
-                              className="absolute inset-0 z-40 cursor-crosshair bg-black/5 hover:bg-black/10 transition-colors"
-                              onClick={(e) => handlePageClick(e, pageNumber + 1)}
-                              title="Cliquez pour ajouter une note"
-                            />
-                          )}
-                          <div className="absolute inset-0 pointer-events-none z-50">
-                            <div className="w-full h-full relative">
-                              {renderAnnotations(pageNumber + 1)}
-                            </div>
-                          </div>
-                        </div>
+                      <div className="hidden lg:block">
+                        {renderPage(pageNumber + 1)}
                       </div>
                     )}
                   </>
                 ) : (
-                  // Virtualized continuous scroll - only render visible pages + buffer
+                  // CONTINUOUS MODE: Virtualized scroll
                   <>
-                    {/* Top spacer to maintain scroll position */}
+                    {/* Top spacer */}
                     {visiblePageRange[0] > 1 && (
                       <div
                         style={{
-                          height: `${(visiblePageRange[0] - 1) * ((calculatedMinHeight || 800) + 16)}px`,
+                          // Visual height must be constant.
+                          // Spacer (DOM) = (PageHeight + Gap/CssScale) * (Pages)
+                          height: `${(visiblePageRange[0] - 1) * (estimatedPageHeight + (16 / cssScale))}px`,
                           width: pageWidth ? `${pageWidth}px` : '100%'
                         }}
                       />
                     )}
 
-                    {/* Only render pages in visible range */}
+                    {/* Visible pages */}
                     {Array.from(
                       { length: visiblePageRange[1] - visiblePageRange[0] + 1 },
                       (_, i) => visiblePageRange[0] + i
-                    ).filter(pageNum => pageNum >= 1 && pageNum <= numPages).map(pageNum => (
-                      <div key={`page_${pageNum}`} className="relative group mb-4">
-                        <div style={filterStyle} className="shadow-xl bg-white relative transition-all">
-                          <Page
-                            pageNumber={pageNum}
-                            scale={1}
-                            width={pageWidth}
-                            renderTextLayer={false}
-                            renderAnnotationLayer={true}
-                            onLoadSuccess={pageNum === 1 ? handlePageLoadSuccess : undefined}
-                            className="bg-white"
-                            devicePixelRatio={Math.min(2, window.devicePixelRatio)}
-                          />
-                          {isAnnotationMode && (
-                            <div
-                              className="absolute inset-0 z-40 cursor-crosshair bg-black/5 hover:bg-black/10 transition-colors"
-                              onClick={(e) => handlePageClick(e, pageNum)}
-                            />
-                          )}
-                          <div className="absolute inset-0 pointer-events-none z-50">
-                            <div className="w-full h-full relative">
-                              {renderAnnotations(pageNum)}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                    )
+                      .filter(pn => pn >= 1 && pn <= numPages)
+                      .map((pn, idx) => renderPage(pn, idx === 0))}
 
-                    {/* Bottom spacer to maintain total scroll height */}
+                    {/* Bottom spacer */}
                     {visiblePageRange[1] < numPages && (
                       <div
                         style={{
-                          height: `${(numPages - visiblePageRange[1]) * ((calculatedMinHeight || 800) + 16)}px`,
+                          height: `${(numPages - visiblePageRange[1]) * (estimatedPageHeight + (16 / cssScale))}px`,
                           width: pageWidth ? `${pageWidth}px` : '100%'
                         }}
                       />
