@@ -3,23 +3,26 @@
  *
  * Integrates the high-performance GPU rendering engine (PdfViewer + TileLayer)
  * with the application UI (Toolbar, AiPanel, etc.).
+ *
+ * Features:
+ * - Stable zoom with useZoom hook
+ * - Drag & Drop file loading
+ * - Theme persistence
+ * - Annotation management
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { ViewMode, AppTheme, ScrollMode, Annotation, PdfMetadata } from './types';
 import Toolbar from './components/Toolbar';
 import PdfViewer, { PdfViewerRef } from './components/PdfViewer';
 import AiPanel from './components/AiPanel';
 import RecentFiles from './components/RecentFiles';
-import { Loader2 } from './components/Icons';
-import useZoom, { ZoomMode } from './hooks/useZoom';
-import { RenderPool } from './utils/RenderPool';
+import useZoom from './hooks/useZoom';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONFIG
 // ─────────────────────────────────────────────────────────────────────────────
 
-const APP_VERSION = '1.2.0 (GPU Engine)';
 const CONFIG_KEY = 'luminapdf-config-v2';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -27,300 +30,339 @@ const CONFIG_KEY = 'luminapdf-config-v2';
 // ─────────────────────────────────────────────────────────────────────────────
 
 function App() {
-  // ═══════════════════════════════════════════════════════════════════════
-  // STATE MANAGEMENT
-  // ═══════════════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════════
+    // STATE MANAGEMENT
+    // ═══════════════════════════════════════════════════════════════════════
 
-  // Document State
-  const [file, setFile] = useState<File | string | null>(null);
-  const [numPages, setNumPages] = useState<number>(0);
-  const [pageNumber, setPageNumber] = useState<number>(1);
-  const [pdfMetadata, setPdfMetadata] = useState<PdfMetadata | null>(null);
-  const [currentPageText, setCurrentPageText] = useState<string>("");
+    // Document State
+    const [file, setFile] = useState<File | string | null>(null);
+    const [numPages, setNumPages] = useState<number>(0);
+    const [pageNumber, setPageNumber] = useState<number>(1);
+    const [pdfMetadata, setPdfMetadata] = useState<PdfMetadata | null>(null);
+    const [currentPageText, setCurrentPageText] = useState<string>("");
 
-  // UI State
-  const [theme, setTheme] = useState<AppTheme>(AppTheme.LIGHT);
-  const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.SINGLE);
-  const [scrollMode, setScrollMode] = useState<ScrollMode>(ScrollMode.PAGED);
-  const [isOutlineOpen, setIsOutlineOpen] = useState<boolean>(false);
-  const [isAiPanelOpen, setIsAiPanelOpen] = useState<boolean>(false);
-  const [isToolbarVisible, setIsToolbarVisible] = useState<boolean>(true);
-  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+    // UI State
+    const [theme, setTheme] = useState<AppTheme>(AppTheme.LIGHT);
+    const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.SINGLE);
+    const [scrollMode, setScrollMode] = useState<ScrollMode>(ScrollMode.PAGED);
+    const [isOutlineOpen, setIsOutlineOpen] = useState<boolean>(false);
+    const [isAiPanelOpen, setIsAiPanelOpen] = useState<boolean>(false);
+    const [isToolbarVisible, setIsToolbarVisible] = useState<boolean>(true);
+    const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
-  // Annotation State
-  const [isAnnotationMode, setIsAnnotationMode] = useState<boolean>(false);
-  const [annotationColor, setAnnotationColor] = useState<string>('#facc15');
-  const [annotations, setAnnotations] = useState<Annotation[]>([]);
+    // Annotation State
+    const [isAnnotationMode, setIsAnnotationMode] = useState<boolean>(false);
+    const [annotationColor, setAnnotationColor] = useState<string>('#facc15');
+    const [annotations, setAnnotations] = useState<Annotation[]>([]);
 
-  // Layout State
-  const [scale, setScale] = useState<number>(1.0);
-  const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 });
-  const [pageDimensions, setPageDimensions] = useState({ width: 612, height: 792 });
-  const [fitToScreenTrigger, setFitToScreenTrigger] = useState<boolean>(false);
+    // Layout State
+    const [scale, setScale] = useState<number>(1.0);
+    const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 });
+    const [pageDimensions, setPageDimensions] = useState({ width: 612, height: 792 });
+    const [fitToScreenTrigger, setFitToScreenTrigger] = useState<boolean>(false);
 
-  // Refs
-  const pdfViewerRef = useRef<PdfViewerRef>(null);
+    // Viewer Ready State (for ref synchronization)
+    const [isViewerReady, setIsViewerReady] = useState<boolean>(false);
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // ZOOM HOOK INTEGRATION
-  // ═══════════════════════════════════════════════════════════════════════
+    // Drag & Drop State
+    const [isDragging, setIsDragging] = useState<boolean>(false);
 
-  const {
-    handleWheelZoom,
-    handleToolbarZoom,
-    handleFitToScreen,
-    currentMode
-  } = useZoom({
-    // We pass refs via a proxy object that will be populated when PdfViewer mounts
-    containerRef: { current: pdfViewerRef.current?.containerRef.current || null } as any,
-    contentRef: { current: pdfViewerRef.current?.contentRef.current || null } as any,
-    scale,
-    setScale,
-    config: {
-      minScale: 0.1,
-      maxScale: 8.0,
-      wheelSensitivity: 0.0015
-    }
-  });
+    // Refs
+    const pdfViewerRef = useRef<PdfViewerRef>(null);
+    const containerRefProxy = useRef<HTMLDivElement | null>(null);
+    const contentRefProxy = useRef<HTMLDivElement | null>(null);
+    const dragCounterRef = useRef<number>(0);
 
-  // Hack to ensure refs are fresh in useZoom
-  // useZoom typically caches refs on mount. We need to force update or ensure usage is dynamic.
-  // The provided useZoom implementation uses refs.current dynamically in callbacks, so it should be fine
-  // IF React re-renders. BUT passing { current: ... } literal creates a new object ref every render.
-  // The useZoom hook uses the object itself.
-  // Let's create a stable mutable ref object that we update.
-  const containerRefProxy = useRef<HTMLDivElement | null>(null);
-  const contentRefProxy = useRef<HTMLDivElement | null>(null);
+    // ═══════════════════════════════════════════════════════════════════════
+    // ZOOM HOOK (Single Instance with Proxy Refs)
+    // ═══════════════════════════════════════════════════════════════════════
 
-  useEffect(() => {
-    if (pdfViewerRef.current) {
-      containerRefProxy.current = pdfViewerRef.current.containerRef.current;
-      contentRefProxy.current = pdfViewerRef.current.contentRef.current;
-    }
-  });
+    const zoomConfig = useMemo(() => ({
+        containerRef: containerRefProxy,
+        contentRef: contentRefProxy,
+        scale,
+        setScale,
+        config: {
+            minScale: 0.1,
+            maxScale: 8.0,
+            wheelSensitivity: 0.0015
+        }
+    }), [scale, isViewerReady]); // Re-create when isViewerReady changes
 
-  // Re-initialize hook with stable proxy refs
-  const zoom = useZoom({
-    containerRef: containerRefProxy,
-    contentRef: contentRefProxy,
-    scale,
-    setScale,
-  });
+    const zoom = useZoom(zoomConfig);
 
-  // Attach wheel listener manually since we can't easily pass onWheel to internal div of PdfViewer
-  useEffect(() => {
-    const container = containerRefProxy.current;
-    if (!container) return;
+    // Attach wheel listener for Ctrl+Wheel zoom
+    useEffect(() => {
+        const container = containerRefProxy.current;
+        if (!container || !isViewerReady) return;
 
-    const onWheel = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        zoom.handleWheelZoom(e);
-      }
-    };
+        const onWheel = (e: WheelEvent) => {
+            if (e.ctrlKey || e.metaKey) {
+                zoom.handleWheelZoom(e);
+            }
+        };
 
-    container.addEventListener('wheel', onWheel, { passive: false });
-    return () => container.removeEventListener('wheel', onWheel);
-  }, [zoom.handleWheelZoom, pdfViewerRef.current]);
+        container.addEventListener('wheel', onWheel, { passive: false });
+        return () => container.removeEventListener('wheel', onWheel);
+    }, [zoom.handleWheelZoom, isViewerReady]);
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // HANDLERS
-  // ═══════════════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════════
+    // HANDLERS
+    // ═══════════════════════════════════════════════════════════════════════
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0];
-      setFile(selectedFile);
-      setPageNumber(1);
-      // Reset zoom
-      setScale(1.0);
-    }
-  };
+    const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const selectedFile = e.target.files[0];
+            setFile(selectedFile);
+            setPageNumber(1);
+            setScale(1.0);
+            setIsViewerReady(false);
+        }
+    }, []);
 
-  const handleOpenFile = (fileOrUrl: File | string) => {
-    setFile(fileOrUrl);
-    setPageNumber(1);
-    setScale(1.0);
-  };
+    const handleOpenFile = useCallback((fileOrUrl: File | string) => {
+        setFile(fileOrUrl);
+        setPageNumber(1);
+        setScale(1.0);
+        setIsViewerReady(false);
+    }, []);
 
-  const handleFitToWidth = () => {
-    if (containerDimensions.width && pageDimensions.width) {
-      // Leave some margin
-      const targetScale = (containerDimensions.width - 48) / pageDimensions.width;
-      zoom.handleFitToScreen(targetScale);
-      setFitToScreenTrigger(prev => !prev); // Trigger scroll reset
-    }
-  };
+    const handleFitToWidth = useCallback(() => {
+        if (containerDimensions.width && pageDimensions.width) {
+            const targetScale = (containerDimensions.width - 48) / pageDimensions.width;
+            zoom.handleFitToScreen(targetScale);
+            setFitToScreenTrigger(prev => !prev);
+        }
+    }, [containerDimensions.width, pageDimensions.width, zoom]);
 
-  const handleAddAnnotation = (page: number, x: number, y: number) => {
-    const newAnnotation: Annotation = {
-      id: crypto.randomUUID(),
-      pageNumber: page,
-      x,
-      y,
-      text: '',
-      color: annotationColor,
-      createdAt: Date.now()
-    };
-    setAnnotations([...annotations, newAnnotation]);
-    setIsAnnotationMode(false); // Exit mode after placement
-  };
+    const handleContainerDimensions = useCallback((dims: { width: number; height: number }) => {
+        setContainerDimensions(dims);
 
-  const handleUpdateAnnotation = (id: string, text: string, color?: string) => {
-    setAnnotations(annotations.map(a =>
-      a.id === id ? { ...a, text, color: color || a.color } : a
-    ));
-  };
+        // Synchronize proxy refs with actual PdfViewer refs
+        if (pdfViewerRef.current) {
+            containerRefProxy.current = pdfViewerRef.current.containerRef.current;
+            contentRefProxy.current = pdfViewerRef.current.contentRef.current;
 
-  const handleDeleteAnnotation = (id: string) => {
-    setAnnotations(annotations.filter(a => a.id !== id));
-  };
+            if (!isViewerReady && containerRefProxy.current && contentRefProxy.current) {
+                setIsViewerReady(true);
+            }
+        }
+    }, [isViewerReady]);
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // PERSISTENCE & INIT
-  // ═══════════════════════════════════════════════════════════════════════
+    // Annotation Handlers
+    const handleAddAnnotation = useCallback((page: number, x: number, y: number) => {
+        const newAnnotation: Annotation = {
+            id: crypto.randomUUID(),
+            pageNumber: page,
+            x,
+            y,
+            text: '',
+            color: annotationColor,
+            createdAt: Date.now()
+        };
+        setAnnotations(prev => [...prev, newAnnotation]);
+        setIsAnnotationMode(false);
+    }, [annotationColor]);
 
-  useEffect(() => {
-    // Load config
-    const saved = localStorage.getItem(CONFIG_KEY);
-    if (saved) {
-      try {
-        const config = JSON.parse(saved);
-        setTheme(config.theme || AppTheme.LIGHT);
-      } catch (e) {
-        console.error("Config load failed", e);
-      }
-    }
-  }, []);
+    const handleUpdateAnnotation = useCallback((id: string, text: string, color?: string) => {
+        setAnnotations(prev => prev.map(a =>
+            a.id === id ? { ...a, text, color: color || a.color } : a
+        ));
+    }, []);
 
-  useEffect(() => {
-    // Save config
-    localStorage.setItem(CONFIG_KEY, JSON.stringify({ theme }));
-    document.documentElement.className = theme === AppTheme.DARK ? 'dark' : '';
-    // Also set background for full immersion
-    document.body.style.backgroundColor =
-      theme === AppTheme.DARK ? '#0f172a' :
-        theme === AppTheme.MIDNIGHT ? '#000000' : '#f8fafc';
-  }, [theme]);
+    const handleDeleteAnnotation = useCallback((id: string) => {
+        setAnnotations(prev => prev.filter(a => a.id !== id));
+    }, []);
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // DRAG & DROP HANDLERS
+    // ═══════════════════════════════════════════════════════════════════════
 
-  // ═══════════════════════════════════════════════════════════════════════
-  // RENDER
-  // ═══════════════════════════════════════════════════════════════════════
+    const handleDragEnter = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounterRef.current++;
 
-  return (
-    <div className={`
-      flex h-screen w-full flex-col overflow-hidden transition-colors duration-300
-      ${theme === AppTheme.DARK || theme === AppTheme.MIDNIGHT || theme === AppTheme.BLUE_NIGHT ? 'dark' : ''}
-      bg-white dark:bg-slate-900
-    `}>
+        if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+            const item = e.dataTransfer.items[0];
+            if (item.kind === 'file' && item.type === 'application/pdf') {
+                setIsDragging(true);
+            }
+        }
+    }, []);
 
-      {/* 1. Header / Toolbar */}
-      <Toolbar
-        file={file}
-        numPages={numPages}
-        pageNumber={pageNumber}
-        scale={scale}
-        theme={theme}
-        viewMode={viewMode}
-        scrollMode={scrollMode}
-        isFullscreen={isFullscreen}
-        isVisible={isToolbarVisible}
-        isOutlineOpen={isOutlineOpen}
-        isAnnotationMode={isAnnotationMode}
-        annotationColor={annotationColor}
-        setPageNumber={setPageNumber}
-        setScale={(s) => zoom.handleToolbarZoom(s, true)} // Animated zoom from toolbar
-        onFitToWidth={handleFitToWidth}
-        setTheme={setTheme}
-        setViewMode={setViewMode}
-        setScrollMode={setScrollMode}
-        setAnnotationColor={setAnnotationColor}
-        toggleFullscreen={() => {
-          if (!document.fullscreenElement) {
-            document.documentElement.requestFullscreen();
-            setIsFullscreen(true);
-          } else {
-            document.exitFullscreen();
-            setIsFullscreen(false);
-          }
-        }}
-        toggleOutline={() => setIsOutlineOpen(!isOutlineOpen)}
-        toggleAnnotationMode={() => setIsAnnotationMode(!isAnnotationMode)}
-        onFileChange={handleFileChange}
-        toggleAiPanel={() => setIsAiPanelOpen(!isAiPanelOpen)}
-        toggleVisibility={() => setIsToolbarVisible(!isToolbarVisible)}
-        onHome={() => setFile(null)}
-      />
+    const handleDragLeave = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounterRef.current--;
 
-      {/* 2. Main Workspace */}
-      <div className="relative flex-1 overflow-hidden">
-        {!file ? (
-          // Empty State / Recent Files
-          <RecentFiles onOpenFile={handleOpenFile} />
-        ) : (
-          // PDF Viewer
-          <div className="w-full h-full relative">
-            <PdfViewer
-              ref={pdfViewerRef}
-              file={file}
-              numPages={numPages}
-              pageNumber={pageNumber}
-              setPageNumber={setPageNumber}
-              scale={scale}
-              renderedScale={scale} // Using same scale for Tile architecture
-              viewMode={viewMode}
-              scrollMode={scrollMode}
-              isOutlineOpen={isOutlineOpen}
-              isAnnotationMode={isAnnotationMode}
-              annotations={annotations}
-              annotationColor={annotationColor}
-              theme={theme}
-              // Actions
-              zoomFocalPoint={null} // Handled internally by hook
-              isFitToScreenAction={fitToScreenTrigger}
-              // Callbacks
-              onLoadSuccess={({ numPages }) => setNumPages(numPages)}
-              onMetadataLoaded={setPdfMetadata}
-              onPageDimensions={(dims) => setPageDimensions(dims)}
-              onContainerDimensions={(dims) => {
-                setContainerDimensions(dims);
-                // Force ref update for zoom hook
-                if (pdfViewerRef.current) {
-                  containerRefProxy.current = pdfViewerRef.current.containerRef.current;
-                  contentRefProxy.current = pdfViewerRef.current.contentRef.current;
-                }
-              }}
-              onTextExtract={setCurrentPageText}
-              onAddAnnotation={handleAddAnnotation}
-              onUpdateAnnotation={handleUpdateAnnotation}
-              onDeleteAnnotation={handleDeleteAnnotation}
+        if (dragCounterRef.current === 0) {
+            setIsDragging(false);
+        }
+    }, []);
+
+    const handleDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+    }, []);
+
+    const handleDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        setIsDragging(false);
+        dragCounterRef.current = 0;
+
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+            const droppedFile = files[0];
+            if (droppedFile.type === 'application/pdf') {
+                handleOpenFile(droppedFile);
+            }
+        }
+    }, [handleOpenFile]);
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // PERSISTENCE & INIT
+    // ═══════════════════════════════════════════════════════════════════════
+
+    useEffect(() => {
+        const saved = localStorage.getItem(CONFIG_KEY);
+        if (saved) {
+            try {
+                const config = JSON.parse(saved);
+                setTheme(config.theme || AppTheme.LIGHT);
+            } catch (e) {
+                console.error("Config load failed", e);
+            }
+        }
+    }, []);
+
+    useEffect(() => {
+        localStorage.setItem(CONFIG_KEY, JSON.stringify({ theme }));
+        document.documentElement.className = theme === AppTheme.DARK ? 'dark' : '';
+        document.body.style.backgroundColor =
+            theme === AppTheme.DARK ? '#0f172a' :
+                theme === AppTheme.MIDNIGHT ? '#000000' : '#f8fafc';
+    }, [theme]);
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // RENDER
+    // ═══════════════════════════════════════════════════════════════════════
+
+    return (
+        <div
+            className={`
+        flex h-screen w-full flex-col overflow-hidden transition-colors duration-300
+        ${theme === AppTheme.DARK || theme === AppTheme.MIDNIGHT || theme === AppTheme.BLUE_NIGHT ? 'dark' : ''}
+        bg-white dark:bg-slate-900
+      `}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+        >
+
+            {/* 1. Header / Toolbar */}
+            <Toolbar
+                file={file}
+                numPages={numPages}
+                pageNumber={pageNumber}
+                scale={scale}
+                theme={theme}
+                viewMode={viewMode}
+                scrollMode={scrollMode}
+                isFullscreen={isFullscreen}
+                isVisible={isToolbarVisible}
+                isOutlineOpen={isOutlineOpen}
+                isAnnotationMode={isAnnotationMode}
+                annotationColor={annotationColor}
+                setPageNumber={setPageNumber}
+                setScale={(s) => zoom.handleToolbarZoom(s, true)}
+                onFitToWidth={handleFitToWidth}
+                setTheme={setTheme}
+                setViewMode={setViewMode}
+                setScrollMode={setScrollMode}
+                setAnnotationColor={setAnnotationColor}
+                toggleFullscreen={() => {
+                    if (!document.fullscreenElement) {
+                        document.documentElement.requestFullscreen();
+                        setIsFullscreen(true);
+                    } else {
+                        document.exitFullscreen();
+                        setIsFullscreen(false);
+                    }
+                }}
+                toggleOutline={() => setIsOutlineOpen(!isOutlineOpen)}
+                toggleAnnotationMode={() => setIsAnnotationMode(!isAnnotationMode)}
+                onFileChange={handleFileChange}
+                toggleAiPanel={() => setIsAiPanelOpen(!isAiPanelOpen)}
+                toggleVisibility={() => setIsToolbarVisible(!isToolbarVisible)}
+                onHome={() => {
+                    setFile(null);
+                    setIsViewerReady(false);
+                }}
             />
 
-            {/* AI Assistant Overlay */}
-            <AiPanel
-              isOpen={isAiPanelOpen}
-              onClose={() => setIsAiPanelOpen(false)}
-              currentPageText={currentPageText}
-              pdfMetadata={pdfMetadata}
-              theme={theme}
-            />
-          </div>
-        )}
-      </div>
+            {/* 2. Main Workspace */}
+            <div className="relative flex-1 overflow-hidden">
+                {!file ? (
+                    <RecentFiles onOpenFile={handleOpenFile} />
+                ) : (
+                    <div className="w-full h-full relative">
+                        <PdfViewer
+                            ref={pdfViewerRef}
+                            file={file}
+                            numPages={numPages}
+                            pageNumber={pageNumber}
+                            setPageNumber={setPageNumber}
+                            scale={scale}
+                            renderedScale={scale}
+                            viewMode={viewMode}
+                            scrollMode={scrollMode}
+                            isOutlineOpen={isOutlineOpen}
+                            isAnnotationMode={isAnnotationMode}
+                            annotations={annotations}
+                            annotationColor={annotationColor}
+                            theme={theme}
+                            zoomFocalPoint={null}
+                            isFitToScreenAction={fitToScreenTrigger}
+                            onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+                            onMetadataLoaded={setPdfMetadata}
+                            onPageDimensions={setPageDimensions}
+                            onContainerDimensions={handleContainerDimensions}
+                            onTextExtract={setCurrentPageText}
+                            onAddAnnotation={handleAddAnnotation}
+                            onUpdateAnnotation={handleUpdateAnnotation}
+                            onDeleteAnnotation={handleDeleteAnnotation}
+                        />
 
-      {/* 3. Drop Zone Indicator (Overlay) */}
-      <div
-        className="absolute inset-0 pointer-events-none z-50 hidden"
-        id="drag-overlay"
-      >
-        <div className="w-full h-full bg-blue-500/20 border-4 border-blue-500 border-dashed flex items-center justify-center">
-          <p className="text-3xl font-bold text-blue-600 bg-white/90 p-4 rounded-xl shadow-xl">
-            Déposez votre PDF ici
-          </p>
+                        <AiPanel
+                            isOpen={isAiPanelOpen}
+                            onClose={() => setIsAiPanelOpen(false)}
+                            currentPageText={currentPageText}
+                            pdfMetadata={pdfMetadata}
+                            theme={theme}
+                        />
+                    </div>
+                )}
+            </div>
+
+            {/* 3. Drag & Drop Overlay */}
+            <div
+                className={`
+          absolute inset-0 pointer-events-none z-50 transition-opacity duration-200
+          ${isDragging ? 'opacity-100' : 'opacity-0'}
+        `}
+            >
+                <div className="w-full h-full bg-blue-500/20 border-4 border-blue-500 border-dashed flex items-center justify-center">
+                    <p className="text-3xl font-bold text-blue-600 bg-white/90 p-4 rounded-xl shadow-xl">
+                        Déposez votre PDF ici
+                    </p>
+                </div>
+            </div>
         </div>
-      </div>
-    </div>
-  );
+    );
 }
 
 export default App;

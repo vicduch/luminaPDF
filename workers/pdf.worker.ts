@@ -2,48 +2,23 @@
  * pdf.worker.ts - PDF Rendering Worker Farm
  *
  * This worker handles the heavy lifting of PDF rendering.
- * It uses a custom CanvasFactory to render to OffscreenCanvas.
+ * Uses a custom CanvasFactory to render to OffscreenCanvas.
  *
- * Version 3.1: Added DOM Shim to prevent "createElement" errors.
+ * Version 3.2: Using legacy build to avoid nested worker spawning issues.
  */
 
 /// <reference lib="webworker" />
 
-import * as pdfjs from 'pdfjs-dist';
+// Use the LEGACY build which doesn't try to spawn a nested worker
+// This is critical for running PDF.js inside a Web Worker
+import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 
-// ✅ CRITICAL: PDF.js needs to know where its internal worker is, even when we are inside a custom worker.
-pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+// Set workerSrc to a valid path (required by PDF.js validation)
+// but the legacy build won't actually use it since we're already in a worker
+// @ts-ignore
+pdfjs.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@' + pdfjs.version + '/legacy/build/pdf.worker.min.mjs';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DOM SHIM
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * PDF.js (even on the API side) sometimes tries to access the DOM for:
- * 1. Creating temporary canvases for pattern/image processing
- * 2. Font loading and measurements
- * Since Workers don't have a DOM, we provide a minimal shim.
- */
-if (typeof self !== 'undefined' && !(self as any).document) {
-    (self as any).document = {
-        createElement: (name: string) => {
-            if (name === 'canvas') {
-                return new OffscreenCanvas(1, 1);
-            }
-            return {
-                style: {},
-                appendChild: () => { },
-                removeChild: () => { },
-                setAttribute: () => { },
-                getAttribute: () => null,
-            };
-        },
-        documentElement: {
-            style: {}
-        },
-        getElementsByTagName: () => [],
-    };
-}
+declare const self: DedicatedWorkerGlobalScope;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TYPES
@@ -70,14 +45,14 @@ let pdfDoc: pdfjs.PDFDocumentProxy | null = null;
 const pageCache = new Map<number, pdfjs.PDFPageProxy>();
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CANVAS FACTORY
+// CANVAS FACTORY (Required for OffscreenCanvas in Worker)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const canvasFactory: any = {
+const canvasFactory = {
     create(width: number, height: number): CanvasAndContext {
         const canvas = new OffscreenCanvas(Math.max(1, width), Math.max(1, height));
-        const context = canvas.getContext('2d', { alpha: false }); // Performance: Opaque
-        return { canvas, context: context as any };
+        const context = canvas.getContext('2d', { alpha: false });
+        return { canvas, context: context as OffscreenCanvasRenderingContext2D };
     },
 
     reset(canvasAndContext: CanvasAndContext, width: number, height: number): void {
@@ -88,14 +63,14 @@ const canvasFactory: any = {
     destroy(canvasAndContext: CanvasAndContext): void {
         canvasAndContext.canvas.width = 1;
         canvasAndContext.canvas.height = 1;
-        (canvasAndContext as any).canvas = null;
-        (canvasAndContext as any).context = null;
     },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MESSAGE HANDLER
 // ─────────────────────────────────────────────────────────────────────────────
+
+console.log('[Worker] PDF Render Worker v3.2 (Legacy Build)');
 
 self.onmessage = async (e: MessageEvent) => {
     const { type, data } = e.data;
@@ -125,7 +100,10 @@ self.onmessage = async (e: MessageEvent) => {
 
 async function handleLoadDocument(data: any): Promise<void> {
     const url = typeof data === 'string' ? data : data?.url;
-    if (!url) return;
+    if (!url) {
+        self.postMessage({ type: 'DOCUMENT_ERROR', error: 'No URL provided' });
+        return;
+    }
 
     try {
         if (pdfDoc) await cleanupDocument();
@@ -134,23 +112,27 @@ async function handleLoadDocument(data: any): Promise<void> {
         const response = await fetch(url);
         if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
         const arrayBuffer = await response.arrayBuffer();
+        console.log('[Worker] PDF fetched, size:', (arrayBuffer.byteLength / 1024).toFixed(1), 'KB');
 
+        // Use legacy getDocument with our canvas factory
+        // @ts-ignore - typing mismatch but works at runtime
         const loadingTask = pdfjs.getDocument({
             data: arrayBuffer,
+            // @ts-ignore
             canvasFactory,
-            // Optimization for workers
-            stopAtErrors: false,
-            isEvalAndContextCanBeTainted: true,
-        } as any);
+            // Disable features that require DOM or extra workers
+            disableFontFace: true,
+            isEvalSupported: false,
+            useSystemFonts: false,
+        });
 
         pdfDoc = await loadingTask.promise;
+        console.log('[Worker] PDF loaded, pages:', pdfDoc.numPages);
 
-        // Get first page to find dimensions
+        // Get first page dimensions
         const firstPage = await pdfDoc.getPage(1);
         const viewport = firstPage.getViewport({ scale: 1.0 });
         const { width, height } = viewport;
-
-        // Immediate cleanup of reference page
         firstPage.cleanup();
 
         self.postMessage({
@@ -171,35 +153,49 @@ async function handleLoadDocument(data: any): Promise<void> {
 
 async function handleRenderTile(job: RenderTileJob): Promise<void> {
     const { id, pageIndex, tileRect, scale, tileSize } = job;
-    if (!pdfDoc) return;
+
+    if (!pdfDoc) {
+        self.postMessage({ type: 'TILE_ERROR', id, error: 'No document loaded' });
+        return;
+    }
 
     try {
+        // Get or cache the page
         let page = pageCache.get(pageIndex);
         if (!page) {
-            page = await pdfDoc.getPage(pageIndex + 1);
+            page = await pdfDoc.getPage(pageIndex + 1); // PDF.js uses 1-based indexing
             pageCache.set(pageIndex, page);
         }
 
+        // Create tile canvas
         const canvas = new OffscreenCanvas(tileSize.width, tileSize.height);
         const ctx = canvas.getContext('2d', { alpha: false });
         if (!ctx) throw new Error('Failed to get 2D context');
 
+        // Fill with white background first
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, tileSize.width, tileSize.height);
+
+        // Get viewport at requested scale
         const viewport = page.getViewport({ scale });
 
-        // Calculate transform to render only the requested tile
+        // Calculate transform to render only the requested tile region
         const transform: [number, number, number, number, number, number] = [
             1, 0, 0, 1,
             -tileRect.x * scale,
             -tileRect.y * scale
         ];
 
+        // Render the page
         await page.render({
-            canvasContext: ctx as any,
+            canvasContext: ctx as unknown as CanvasRenderingContext2D,
             viewport,
             transform,
-            canvasFactory, // Pass factory here too for safety
-        } as any).promise;
+            // @ts-ignore
+            canvasFactory,
+        }).promise;
 
+        // Transfer the bitmap (zero-copy)
         const bitmap = canvas.transferToImageBitmap();
         self.postMessage({ type: 'TILE_READY', id, bitmap }, [bitmap]);
 
@@ -222,4 +218,5 @@ async function cleanupDocument(): Promise<void> {
         await pdfDoc.destroy();
         pdfDoc = null;
     }
+    console.log('[Worker] Document cleaned up');
 }
