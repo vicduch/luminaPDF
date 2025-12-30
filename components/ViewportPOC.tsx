@@ -1,45 +1,89 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useViewportTransform, TransformState } from '../hooks/useViewportTransform';
 import { TileLayer } from './TileLayer';
+import { RenderPool } from '../utils/RenderPool';
 
-/**
- * POC Viewport Component
- * Demonstrates high-performance tiled rendering foundation.
- */
-export const ViewportPOC: React.FC = () => {
+interface ViewportPOCProps {
+    pdfUrl?: string;
+}
+
+export const ViewportPOC: React.FC<ViewportPOCProps> = ({ pdfUrl }) => {
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // State for the TileLayer (Decoupled from the 60fps visual transform)
+    // Initial state: We must wait for workers to be READY
+    const [isWorkersReady, setIsWorkersReady] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [debugInfo, setDebugInfo] = useState("Initializing Workers...");
+    const [contentSize, setContentSize] = useState({ width: 612, height: 792 });
+
     const [gridState, setGridState] = useState<TransformState>({ x: 0, y: 0, scale: 1 });
     const [viewportSize, setViewportSize] = useState({ width: window.innerWidth, height: window.innerHeight });
 
-    // Throttle helper ref
     const lastUpdateRef = useRef(0);
 
     const handleTransformUpdate = useCallback((state: TransformState) => {
         const now = Date.now();
-        // Throttle React State updates to ~30fps or less to save Main Thread for the Physics/CSS
-        if (now - lastUpdateRef.current > 50) { // 50ms = 20fps
-            setGridState({ ...state }); // Clone to trigger update
+        if (now - lastUpdateRef.current > 50) {
+            setGridState({ ...state });
             lastUpdateRef.current = now;
         }
     }, []);
 
-    // Use our custom hook
-    const { viewportRef, zoomToPoint, pan, transformRef } = useViewportTransform({
+    const { viewportRef, zoomToPoint, transformRef } = useViewportTransform({
         minScale: 0.1,
         maxScale: 20,
         onUpdate: handleTransformUpdate
     });
 
-    // Debug overlay state (optional, for verification)
-    const [debugInfo, setDebugInfo] = useState("Scale: 1.00");
+    // ─────────────────────────────────────────────────────────────
+    // LOAD DOCUMENT & WAIT FOR WORKERS
+    // ─────────────────────────────────────────────────────────────
+    useEffect(() => {
+        if (!pdfUrl) {
+            setIsLoading(false);
+            setDebugInfo("No PDF path provided");
+            return;
+        }
 
+        let isMounted = true;
+
+        async function init() {
+            try {
+                setIsLoading(true);
+                setDebugInfo(`Loading ${pdfUrl}...`);
+
+                const pool = RenderPool.getInstance();
+
+                // We wait for the document to be fully loaded in ALL workers
+                const { width, height } = await pool.loadDocument(pdfUrl);
+
+                if (isMounted) {
+                    setContentSize({ width, height });
+                    setIsWorkersReady(true);
+                    setIsLoading(false);
+                    setDebugInfo(`PDF Loaded (${width}x${height})`);
+                    console.log("ViewportPOC: Document ready in all workers.");
+                }
+            } catch (err) {
+                if (isMounted) {
+                    setDebugInfo(`Error: ${String(err)}`);
+                    setIsLoading(false);
+                    console.error("ViewportPOC: Failed to init document", err);
+                }
+            }
+        }
+
+        init();
+        return () => { isMounted = false; };
+    }, [pdfUrl]);
+
+    // ─────────────────────────────────────────────────────────────
+    // EVENT LISTENERS
+    // ─────────────────────────────────────────────────────────────
     useEffect(() => {
         const container = containerRef.current;
         if (!container) return;
 
-        // Update viewport size on resize
         const resizeObserver = new ResizeObserver((entries) => {
             for (let entry of entries) {
                 setViewportSize({ width: entry.contentRect.width, height: entry.contentRect.height });
@@ -47,116 +91,32 @@ export const ViewportPOC: React.FC = () => {
         });
         resizeObserver.observe(container);
 
-        // ─────────────────────────────────────────────────────────────
-        // EVENT LISTENERS (Native for max performance control)
-        // ─────────────────────────────────────────────────────────────
-
-        // 1. Wheel Zoom
         const handleWheel = (e: WheelEvent) => {
-            e.preventDefault(); // Stop browser scroll
-
+            e.preventDefault();
             const rect = container.getBoundingClientRect();
             const pivotX = e.clientX - rect.left;
             const pivotY = e.clientY - rect.top;
-
-            // Standardize wheel delta
-            // e.deltaY > 0 means scroll down (zoom out), < 0 means scroll up (zoom in)
-
-            // Normalisation Cross-Browser (Pixel vs Line vs Page)
-            // 0 = Pixels, 1 = Lines (approx 40px), 2 = Pages (approx 800px)
             const deltaModeMultiplier = e.deltaMode === 1 ? 40 : (e.deltaMode === 2 ? 800 : 1);
             const normalizedDelta = e.deltaY * deltaModeMultiplier;
-
-            // Sensibilité ajustée
             const sensitivity = 0.002;
             const zoomFactor = Math.exp(-normalizedDelta * sensitivity);
-
             zoomToPoint(pivotX, pivotY, zoomFactor);
-
-            // Update debug info occasionally (not every frame to avoid React render lag)
-            if (Math.random() > 0.9) {
-                setDebugInfo(`Scale: ${transformRef.current.scale.toFixed(2)}`);
-            }
         };
-
-        // 2. Touch Gestures (Simple Pinch/Pan POC)
-        // For a full production app, we would use a robust recognizer state machine
-        let initialDist: number | null = null;
-        let initialScale: number = 1;
 
         const handleTouchStart = (e: TouchEvent) => {
-            if (e.touches.length === 2) {
-                e.preventDefault();
-                const dx = e.touches[0].clientX - e.touches[1].clientX;
-                const dy = e.touches[0].clientY - e.touches[1].clientY;
-                initialDist = Math.hypot(dx, dy);
-                initialScale = transformRef.current.scale;
-            }
-        };
-
-        const handleTouchMove = (e: TouchEvent) => {
-            e.preventDefault();
-
-            // PAN (1 finger)
-            if (e.touches.length === 1) {
-                // Implement simple pan delta tracking here if needed
-                // For POC, we focus on Zoom logic as requested
-            }
-
-            // PINCH (2 fingers)
-            if (e.touches.length === 2 && initialDist) {
-                const t1 = e.touches[0];
-                const t2 = e.touches[1];
-
-                // Current distance
-                const dx = t1.clientX - t2.clientX;
-                const dy = t1.clientY - t2.clientY;
-                const currentDist = Math.hypot(dx, dy);
-
-                // Focal Point (Midpoint) relative to container
-                const rect = container.getBoundingClientRect();
-                const midX = (t1.clientX + t2.clientX) / 2 - rect.left;
-                const midY = (t1.clientY + t2.clientY) / 2 - rect.top;
-
-                // Calculate zoom factor relative to *previous frame* is tricky with native events 
-                // without state machine.
-                // Easier: Calculate absolute target scale and drift.
-                // But for "Zero Latency" incremental updates (like wheel), we want delta.
-
-                // Let's use the pure setTransform or incremental approach?
-                // Incremental is best for the hook we built:
-                const scaleFactor = currentDist / initialDist;
-
-                // Reset baseline for next move event to avoid compounding errors 
-                // (This makes it an incremental updates stream)
-                zoomToPoint(midX, midY, scaleFactor);
-
-                // Update baseline
-                initialDist = currentDist;
-            }
-        };
-
-        const handleTouchEnd = () => {
-            initialDist = null;
+            if (e.touches.length === 2) e.preventDefault();
         };
 
         container.addEventListener('wheel', handleWheel, { passive: false });
         container.addEventListener('touchstart', handleTouchStart, { passive: false });
-        container.addEventListener('touchmove', handleTouchMove, { passive: false });
-        container.addEventListener('touchend', handleTouchEnd);
 
         return () => {
             resizeObserver.disconnect();
             container.removeEventListener('wheel', handleWheel);
             container.removeEventListener('touchstart', handleTouchStart);
-            container.removeEventListener('touchmove', handleTouchMove);
-            container.removeEventListener('touchend', handleTouchEnd);
         };
-    }, [zoomToPoint, transformRef]);
+    }, [zoomToPoint]);
 
-    // ─────────────────────────────────────────────────────────────
-    // RENDER
-    // ─────────────────────────────────────────────────────────────
     return (
         <div
             ref={containerRef}
@@ -166,61 +126,63 @@ export const ViewportPOC: React.FC = () => {
                 overflow: 'hidden',
                 position: 'relative',
                 backgroundColor: '#1e1e1e',
-                touchAction: 'none' // Disable browser gestures
+                touchAction: 'none'
             }}
         >
-            {/* VIEWPORT LAYER (GPU Accelerated) */}
             <div
                 ref={viewportRef}
                 style={{
-                    // IMPORTANT: The conceptual size of the content at Scale 1.0
-                    width: '2000px',
-                    height: '3000px',
-                    transformOrigin: '0 0', // CRITICAL for matrix logic
-                    willChange: 'transform', // Browser optimization hint
-                    backgroundColor: '#111'
+                    width: `${contentSize.width}px`,
+                    height: `${contentSize.height}px`,
+                    transformOrigin: '0 0',
+                    willChange: 'transform',
+                    backgroundColor: '#ffffff'
                 }}
             >
-                {/* The Grid Visualization */}
+                {/* Visual debug grid */}
                 <div style={{
                     position: 'absolute', inset: 0,
-                    backgroundImage: `
-                    linear-gradient(#333 1px, transparent 1px),
-                    linear-gradient(90deg, #333 1px, transparent 1px)
-                `,
-                    backgroundSize: '256px 256px', // Visual guide for tiles
-                    opacity: 0.2,
+                    backgroundImage: 'linear-gradient(#f0f0f0 1px, transparent 1px), linear-gradient(90deg, #f0f0f0 1px, transparent 1px)',
+                    backgroundSize: '256px 256px',
+                    opacity: 0.5,
                     pointerEvents: 'none'
                 }} />
 
-                {/* Tile Layer System */}
-                <TileLayer
-                    viewportTransform={gridState}
-                    viewportSize={viewportSize}
-                    contentSize={{ width: 2000, height: 3000 }}
-                />
-
-                {/* Content Mock Markers */}
-                <div style={{ position: 'absolute', top: 500, left: 500, color: 'white', fontSize: 40 }}>
-                    CONTENT START (500, 500)
-                </div>
-                <div style={{ position: 'absolute', top: 1500, left: 1000, color: 'white', fontSize: 40 }}>
-                    CENTER (1000, 1500)
-                </div>
+                {/* SHOW TILE LAYER ONLY WHEN WORKERS ARE READY */}
+                {isWorkersReady && (
+                    <TileLayer
+                        viewportTransform={gridState}
+                        viewportSize={viewportSize}
+                        contentSize={contentSize}
+                    />
+                )}
             </div>
 
-            {/* HUD */}
+            {/* HUD / Debug Overlay */}
             <div style={{
                 position: 'absolute', top: 20, left: 20,
-                background: 'rgba(0,0,0,0.7)', color: 'white', padding: '10px',
-                pointerEvents: 'none',
-                zIndex: 999
+                background: 'rgba(0,0,0,0.8)', color: 'white', padding: '15px',
+                borderRadius: '8px', pointerEvents: 'none', zIndex: 1000,
+                fontFamily: 'monospace', fontSize: '12px', border: '1px solid #444'
             }}>
-                <div>{debugInfo}</div>
-                <div style={{ fontSize: '10px', marginTop: 5 }}>
-                    Rendered Tiles: Use React DevTools
+                <div style={{ color: isLoading ? '#ffcc00' : '#00ff00', marginBottom: '5px' }}>
+                    ● {debugInfo}
                 </div>
+                <div>Zoom: {gridState.scale.toFixed(2)}x</div>
+                <div>Viewport: {viewportSize.width}x{viewportSize.height}</div>
             </div>
+
+            {isLoading && (
+                <div style={{
+                    position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', color: 'white', zIndex: 900
+                }}>
+                    <div style={{ textAlign: 'center' }}>
+                        <div className="animate-spin" style={{ width: 40, height: 40, border: '4px solid #fff', borderTopColor: 'transparent', borderRadius: '50%', margin: '0 auto 15px' }}></div>
+                        Chargement du GPU Render Farm...
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
