@@ -114,10 +114,9 @@ export const openDrivePicker = (): Promise<DriveFile | null> => {
         function createPicker(accessToken: string) {
             console.log("Construction du Picker Google...");
 
-            // Vue pour les PDFs (Mode Liste)
+            // Vue pour les PDFs (Grille avec miniatures)
             const pdfView = new (window as any).google.picker.DocsView((window as any).google.picker.ViewId.PDFS);
             pdfView.setMimeTypes('application/pdf');
-            pdfView.setMode((window as any).google.picker.DocsViewMode.LIST);
 
             // Vue pour les fichiers récents
             const recentView = new (window as any).google.picker.DocsView((window as any).google.picker.ViewId.RECENTLY_PICKED);
