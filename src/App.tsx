@@ -640,72 +640,74 @@ function App() {
             )}
 
             {/* 1. Header / Toolbar */}
-            <div className="flex-none z-20 relative pt-1">
-                {/* Floating button to restore toolbar when hidden */}
-                {!isToolbarVisible && (
-                    <button
-                        onClick={() => setIsToolbarVisible(true)}
-                        className="absolute top-0 left-1/2 -translate-x-1/2 z-50
-                            w-10 h-5 flex items-center justify-center
-                            rounded-b-lg opacity-30 hover:opacity-100
-                            transition-all duration-200 hover:h-7"
-                        style={{
-                            backgroundColor: 'var(--lumina-bg-secondary)',
-                            borderLeft: '1px solid var(--lumina-border)',
-                            borderRight: '1px solid var(--lumina-border)',
-                            borderBottom: '1px solid var(--lumina-border)',
+            {file && (
+                <div className="flex-none z-20 relative pt-1">
+                    {/* Floating button to restore toolbar when hidden */}
+                    {!isToolbarVisible && (
+                        <button
+                            onClick={() => setIsToolbarVisible(true)}
+                            className="absolute top-0 left-1/2 -translate-x-1/2 z-50
+                                w-10 h-5 flex items-center justify-center
+                                rounded-b-lg opacity-30 hover:opacity-100
+                                transition-all duration-200 hover:h-7"
+                            style={{
+                                backgroundColor: 'var(--lumina-bg-secondary)',
+                                borderLeft: '1px solid var(--lumina-border)',
+                                borderRight: '1px solid var(--lumina-border)',
+                                borderBottom: '1px solid var(--lumina-border)',
+                            }}
+                            title="Afficher la barre d'outils (H)"
+                        >
+                            <svg width="16" height="8" viewBox="0 0 16 8" fill="none">
+                                <path d="M2 2L8 6L14 2" stroke="var(--lumina-text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                        </button>
+                    )}
+                    <Toolbar
+                        file={file}
+                        numPages={numPages}
+                        pageNumber={pageNumber}
+                        scale={scale}
+                        theme={theme}
+                        viewMode={viewMode}
+                        scrollMode={scrollMode}
+                        isFullscreen={isFullscreen}
+                        isVisible={isToolbarVisible}
+                        isOutlineOpen={isOutlineOpen}
+                        isAnnotationMode={isAnnotationMode}
+                        annotationColor={annotationColor}
+                        setPageNumber={setPageNumber}
+                        setScale={setScale}
+                        onFitToWidth={handleFitToWidth}
+                        setTheme={setTheme}
+                        themeVariant={themeVariant}
+                        setThemeVariant={setThemeVariant}
+                        setViewMode={setViewMode}
+                        setScrollMode={setScrollMode}
+                        setAnnotationColor={setAnnotationColor}
+                        toggleFullscreen={() => {
+                            if (!document.fullscreenElement) {
+                                document.documentElement.requestFullscreen();
+                                setIsFullscreen(true);
+                            } else {
+                                document.exitFullscreen();
+                                setIsFullscreen(false);
+                            }
                         }}
-                        title="Afficher la barre d'outils (H)"
-                    >
-                        <svg width="16" height="8" viewBox="0 0 16 8" fill="none">
-                            <path d="M2 2L8 6L14 2" stroke="var(--lumina-text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                    </button>
-                )}
-                <Toolbar
-                    file={file}
-                    numPages={numPages}
-                    pageNumber={pageNumber}
-                    scale={scale}
-                    theme={theme}
-                    viewMode={viewMode}
-                    scrollMode={scrollMode}
-                    isFullscreen={isFullscreen}
-                    isVisible={isToolbarVisible}
-                    isOutlineOpen={isOutlineOpen}
-                    isAnnotationMode={isAnnotationMode}
-                    annotationColor={annotationColor}
-                    setPageNumber={setPageNumber}
-                    setScale={setScale}
-                    onFitToWidth={handleFitToWidth}
-                    setTheme={setTheme}
-                    themeVariant={themeVariant}
-                    setThemeVariant={setThemeVariant}
-                    setViewMode={setViewMode}
-                    setScrollMode={setScrollMode}
-                    setAnnotationColor={setAnnotationColor}
-                    toggleFullscreen={() => {
-                        if (!document.fullscreenElement) {
-                            document.documentElement.requestFullscreen();
-                            setIsFullscreen(true);
-                        } else {
-                            document.exitFullscreen();
-                            setIsFullscreen(false);
-                        }
-                    }}
-                    toggleOutline={() => setIsOutlineOpen(!isOutlineOpen)}
-                    toggleAnnotationMode={() => setIsAnnotationMode(!isAnnotationMode)}
-                    onFileChange={handleFileChange}
-                    toggleAiPanel={() => setIsAiPanelOpen(!isAiPanelOpen)}
-                    toggleVisibility={() => setIsToolbarVisible(!isToolbarVisible)}
-                    onHome={() => {
-                        setFile(null);
-                        setIsViewerReady(false);
-                    }}
-                    recentFiles={recentFiles.slice(0, 5).map(f => ({ id: f.id, name: f.name, lastVisited: f.lastVisited }))}
-                    onOpenRecentFile={handleOpenRecentFile}
-                />
-            </div>
+                        toggleOutline={() => setIsOutlineOpen(!isOutlineOpen)}
+                        toggleAnnotationMode={() => setIsAnnotationMode(!isAnnotationMode)}
+                        onFileChange={handleFileChange}
+                        toggleAiPanel={() => setIsAiPanelOpen(!isAiPanelOpen)}
+                        toggleVisibility={() => setIsToolbarVisible(!isToolbarVisible)}
+                        onHome={() => {
+                            setFile(null);
+                            setIsViewerReady(false);
+                        }}
+                        recentFiles={recentFiles.slice(0, 5).map(f => ({ id: f.id, name: f.name, lastVisited: f.lastVisited }))}
+                        onOpenRecentFile={handleOpenRecentFile}
+                    />
+                </div>
+            )}
 
             {/* 2. Main Workspace */}
             <div className="flex-1 relative overflow-hidden z-10">

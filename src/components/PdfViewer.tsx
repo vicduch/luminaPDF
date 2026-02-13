@@ -222,7 +222,14 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
     <div
       ref={elementRef}
       data-page-number={pageNumber}
-      style={{ width, height, filter: filterStyle, position: 'relative', backgroundColor: paperBg }}
+      style={{
+        width,
+        height,
+        filter: filterStyle,
+        position: 'relative',
+        backgroundColor: paperBg,
+        boxShadow: `0 0 0 1px ${paperBg}` // Tiny overlap to hide subpixel gaps
+      }}
       className="shadow-2xl shrink-0 overflow-hidden"
     >
       {isRendered ? (
