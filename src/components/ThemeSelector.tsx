@@ -57,8 +57,7 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({ currentTheme, setTheme })
 
       {isOpen && (
         <div className={`
-            absolute right-0 mt-2 w-56 rounded-xl shadow-2xl border z-50 overflow-hidden py-1 animate-in fade-in zoom-in-95 duration-200 origin-top-right
-            bg-[var(--lumina-bg-secondary)] border-[var(--lumina-border)] text-[var(--lumina-text)]
+            absolute right-0 mt-2 w-56 z-50 overflow-hidden py-1 origin-top-right dropdown-premium text-[var(--lumina-text)]
         `}>
           <div className="px-3 py-2 text-xs font-semibold opacity-60 uppercase tracking-wider">
             Apparence

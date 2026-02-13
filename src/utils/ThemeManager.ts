@@ -65,18 +65,18 @@ export const THEME_PALETTES: Record<string, VariantPalettes> = {
             shadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05)',
         },
         dark: {
-            appBg: '#020617',           // Deep Slate (Uniform with Midnight)
+            appBg: '#09090b',           // Neutral Zinc-950
             paperBg: '#1e1e22',         // Matches RENDER_PALETTE.light.dark exactly [30, 30, 34]
-            bgSecondary: '#0f172a',     // Slate-900
-            bgTertiary: '#1e293b',      // Slate-800
+            bgSecondary: '#18181b',     // Zinc-900
+            bgTertiary: '#27272a',      // Zinc-800
             accent: '#60A5FA', accentHover: '#3B82F6', accentMuted: 'rgba(96, 165, 250, 0.15)',
-            text: '#f1f5f9',            // Slate-100
-            textMuted: '#94a3b8',       // Slate-400
+            text: '#e4e4e7',            // Zinc-200
+            textMuted: '#a1a1aa',       // Zinc-400
             textInverse: '#000000',
-            border: '#1e293b',          // Slate-800
-            borderHover: '#334155',     // Slate-700
+            border: '#27272a',          // Zinc-800
+            borderHover: '#3f3f46',     // Zinc-700
             success: '#10B981', warning: '#F59E0B', error: '#EF4444',
-            shadow: '0 0 40px rgba(0, 0, 0, 0.4)',
+            shadow: '0 0 40px rgba(0, 0, 0, 0.5)',
         },
     },
 

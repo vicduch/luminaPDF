@@ -104,7 +104,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
   // Get toolbar background/text colors based on theme
   const getToolbarClasses = () => {
-    return 'bg-[var(--lumina-bg-secondary)]/80 border-[var(--lumina-border)] text-[var(--lumina-text)]';
+    return 'text-[var(--lumina-text)]';
   };
 
   return (

@@ -70,22 +70,30 @@
   box-shadow: 0 0 15px var(--lumina-shadow);
 }
 
-/* Glassmorphism & Premium Surfaces */
+/* ── Premium UI Elements ── */
 .glass-premium {
-  backdrop-filter: blur(12px) saturate(180%);
-  -webkit-backdrop-filter: blur(12px) saturate(180%);
-  background-color: rgba(var(--bg-rgb, 10, 10, 10), 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px) saturate(180%);
+  -webkit-backdrop-filter: blur(14px) saturate(180%);
+  background-color: color-mix(in srgb, var(--lumina-bg-secondary), transparent 25%);
+  border-bottom: 1px solid var(--lumina-border);
 }
 
 .dropdown-premium {
   @apply shadow-2xl rounded-2xl border overflow-hidden animate-pop-in;
   backdrop-filter: blur(20px);
+  background-color: color-mix(in srgb, var(--lumina-bg-secondary), transparent 5%);
+  border: 1px solid var(--lumina-border);
 }
 
 /* Specific Action Buttons */
 .btn-action {
-  @apply flex items-center justify-center p-2 rounded-xl transition-all duration-200 hover:bg-black/5 dark:hover:bg-white/10 active:scale-95;
+  @apply flex items-center justify-center p-2 rounded-xl transition-all duration-200 active:scale-95;
+  color: var(--lumina-text);
+}
+
+.btn-action:hover {
+  background-color: var(--lumina-bg-tertiary);
+  color: var(--lumina-text);
 }
 
 .btn-action.active {
