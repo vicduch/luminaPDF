@@ -720,6 +720,61 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     };
   }, [scale, onScaleChange]);
 
+  // Sprint 2.11: Swipe horizontal to change page (Tablets)
+  // Only triggers if scroll is at boundaries (to avoid conflict with panning)
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || scrollMode !== ScrollMode.PAGED) return;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        touchStartX.current = e.touches[0].clientX;
+        touchStartY.current = e.touches[0].clientY;
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (touchStartX.current === null || touchStartY.current === null) return;
+
+      const touchEndX = e.changedTouches[0].clientX;
+      const touchEndY = e.changedTouches[0].clientY;
+      const dx = touchEndX - touchStartX.current;
+      const dy = touchEndY - touchStartY.current;
+
+      // Ensure it's a horizontal swipe (dx >> dy) and meets threshold
+      const horizontalThreshold = 70;
+      const verticalThreshold = 40;
+
+      if (Math.abs(dx) > horizontalThreshold && Math.abs(dy) < verticalThreshold) {
+        // TRIGGER CONDITION: Only if we are at the physical border of the scroll
+        const isAtLeft = container.scrollLeft <= 5;
+        const isAtRight = container.scrollLeft + container.clientWidth >= container.scrollWidth - 5;
+
+        if (dx > 0 && isAtLeft) {
+          // Swipe Right -> Previous Page
+          if (pageNumber > 1) setPageNumber(p => p - 1);
+        } else if (dx < 0 && isAtRight) {
+          // Swipe Left -> Next Page
+          if (pageNumber < numPages) setPageNumber(p => p + 1);
+        }
+      }
+
+      touchStartX.current = null;
+      touchStartY.current = null;
+    };
+
+    container.addEventListener('touchstart', handleTouchStart, { passive: true });
+    container.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+    return () => {
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [scrollMode, pageNumber, numPages, setPageNumber]);
+
   const isContinuous = scrollMode === ScrollMode.CONTINUOUS;
 
   return (

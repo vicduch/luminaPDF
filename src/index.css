@@ -106,6 +106,33 @@
 /* ═══════════════════════════════════════════════════════════════════════
      BASE STYLES
      ═══════════════════════════════════════════════════════════════════════ */
+@layer base {
+
+  html,
+  body {
+    @apply h-full overflow-hidden;
+    /* Prevent pull-to-refresh and elastic bounce on mobile */
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Touch optimization */
+.pdf-camera-container {
+  /* Allow vertical scroll and pinch but capture horizontal for swipe */
+  touch-action: pan-y pinch-zoom;
+}
+
+button,
+a,
+.clickable {
+  /* Prevent double-tap to zoom on buttons */
+  touch-action: manipulation;
+  min-height: 44px;
+  /* Apple HIG minimum */
+  min-width: 44px;
+}
+
 html,
 body {
   margin: 0;
