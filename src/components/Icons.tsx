@@ -98,8 +98,8 @@ export const GoogleDriveIcon = ({ size = 18 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M15.471 3L22.5 15L19.029 21H12L15.471 3Z" fill="#00AC47" />
     <path d="M8.529 3L1.5 15L4.971 21H11.999L8.529 3Z" fill="#0066DA" />
-    <path d="M12 9L5 21L19 21L12 9Z" fill="#FFBA00" />
     <path d="M15.471 3L8.529 3L12 9L15.471 3Z" fill="#FFBA00" />
+    <path d="M12 9L5 21L19 21L12 9Z" fill="#FFBA00" />
   </svg>
 );
 
