@@ -128,7 +128,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
           <button
             onClick={toggleOutline}
             className={`btn-action ${isOutlineOpen ? 'active' : ''}`}
-            title="Sommaire"
+            title="Sommaire (L)"
           >
             <List size={18} />
           </button>
@@ -193,6 +193,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
           <button
             disabled={pageNumber <= 1 || scrollMode === ScrollMode.CONTINUOUS}
             onClick={() => setPageNumber(pageNumber - 1)}
+            title="Précédent (←)"
             className="p-1 px-2 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-30 transition-all shrink-0"
           >
             <ChevronLeft size={16} />
@@ -212,6 +213,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
           <button
             disabled={pageNumber >= numPages || scrollMode === ScrollMode.CONTINUOUS}
             onClick={() => setPageNumber(pageNumber + 1)}
+            title="Suivant (→)"
             className="p-1 px-2 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-30 transition-all shrink-0"
           >
             <ChevronRight size={16} />
@@ -220,17 +222,17 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
         {/* Zoom Controls */}
         <div className="hidden lg:flex items-center gap-1 bg-black/5 dark:bg-white/5 rounded-xl p-1 h-9 md:h-10">
-          <button onClick={() => setScale(Math.max(0.1, scale / 1.15))} className="btn-action !p-1.5" title="Zoom Arrière">
+          <button onClick={() => setScale(Math.max(0.1, scale / 1.15))} className="btn-action !p-1.5" title="Zoom Arrière (-)">
             <ZoomOut size={16} />
           </button>
           <div className="text-[12px] w-12 text-center font-bold tracking-tight">
             {Math.round(scale * 100)}%
           </div>
-          <button onClick={() => setScale(Math.min(8.0, scale * 1.15))} className="btn-action !p-1.5" title="Zoom Avant">
+          <button onClick={() => setScale(Math.min(8.0, scale * 1.15))} className="btn-action !p-1.5" title="Zoom Avant (+)">
             <ZoomIn size={16} />
           </button>
           <div className="w-px h-4 bg-current opacity-10 mx-1"></div>
-          <button onClick={onFitToWidth} className="btn-action !p-1.5" title="Ajuster">
+          <button onClick={onFitToWidth} className="btn-action !p-1.5" title="Ajuster (W)">
             <Scan size={16} />
           </button>
         </div>
@@ -242,7 +244,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           onClick={onFitToWidth}
           className="lg:hidden btn-action"
-          title="Ajuster"
+          title="Ajuster (W)"
         >
           <Scan size={18} />
         </button>
@@ -295,7 +297,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           onClick={toggleAiPanel}
           className="btn-action hover:text-[var(--lumina-accent)] group"
-          title="Assistant IA"
+          title="Assistant IA (S)"
         >
           <Sparkles size={18} className="group-hover:animate-soft-pulse text-[var(--lumina-accent)]" />
         </button>
@@ -307,7 +309,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
           <button
             onClick={() => setScrollMode(scrollMode === ScrollMode.PAGED ? ScrollMode.CONTINUOUS : ScrollMode.PAGED)}
             className="btn-action"
-            title={scrollMode === ScrollMode.PAGED ? "Défilement vertical" : "Mode page par page"}
+            title={scrollMode === ScrollMode.PAGED ? "Défilement vertical (C)" : "Mode page par page (C)"}
           >
             {scrollMode === ScrollMode.PAGED ? <GalleryHorizontal size={18} /> : <GalleryVertical size={18} />}
           </button>
@@ -327,7 +329,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <button
           onClick={() => setThemeVariant(themeVariant === 'light' ? 'dark' : 'light')}
           className="btn-action"
-          title={themeVariant === 'light' ? 'Mode sombre' : 'Mode clair'}
+          title={themeVariant === 'light' ? 'Mode sombre (D)' : 'Mode clair (D)'}
         >
           {themeVariant === 'light' ? <Moon size={18} /> : <Sun size={18} />}
         </button>
@@ -387,7 +389,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
           <button
             onClick={toggleFullscreen}
             className="btn-action"
-            title="Plein écran"
+            title="Plein écran (F)"
           >
             {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
           </button>
@@ -395,13 +397,13 @@ const Toolbar: React.FC<ToolbarProps> = ({
           <button
             onClick={toggleVisibility}
             className="btn-action opacity-40 hover:opacity-100"
-            title="Masquer la barre"
+            title="Masquer la barre (H)"
           >
             <ChevronUp size={18} />
           </button>
         </div>
       </div>
-    </div>
+    </div >
   );
 };
 

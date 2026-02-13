@@ -49,7 +49,7 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({ currentTheme, setTheme })
             p-2 rounded-md transition-colors flex items-center gap-2 text-sm font-medium
             ${isOpen ? 'bg-[var(--lumina-bg-tertiary)]' : 'hover:bg-[var(--lumina-bg-tertiary)]'}
         `}
-        title="Changer le thème"
+        title="Changer le thème (T)"
       >
         <Settings size={18} />
         <span className="hidden sm:inline">Thème</span>

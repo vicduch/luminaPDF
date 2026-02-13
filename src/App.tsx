@@ -606,6 +606,20 @@ function App() {
                 handleCycleTheme();
                 return;
             }
+
+            // ── Toggle Outline (L) ──
+            if (e.key === 'l' && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                setIsOutlineOpen(prev => !prev);
+                return;
+            }
+
+            // ── Toggle AI Panel (S) ──
+            if (e.key === 's' && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
+                setIsAiPanelOpen(prev => !prev);
+                return;
+            }
         };
 
         window.addEventListener('keydown', handleKeyDown);
