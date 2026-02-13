@@ -2153,3 +2153,47 @@ requestAnimationFrame(() => requestAnimationFrame(centerDocument));
 
 **Résultat :** ✅ Projet stabilisé et poli. L'application est prête pour un usage multi-support.
 
+---
+
+## 2026-02-13 — Phase 5 : Audit Thèmes & Excellence du Rendu
+
+### Tâche : Unification du système de thèmes et suppression des artefacts visuels
+
+**Objectifs :**
+1.  Supprimer l'encadrement blanc et les flashs lors des changements de pages/zoom.
+2.  Unifier l'UI via des variables CSS dynamiques (fin des couleurs hardcodées).
+3.  Optimiser le contraste et la lisibilité du thème "Clair" (Light).
+4.  Garantir la cohérence visuelle des composants Premium (Toolbar, Sélecteurs).
+
+---
+
+### Modifications Techniques
+
+#### 1. Système de Thèmes Centralisé (`ThemeManager.ts`, `index.css`)
+- **Variables CSS Natives :** Migration de toute l'UI vers des variables `--lumina-*`. L'application de thèmes ne manipule plus le DOM directement pour chaque couleur, mais injecte des propriétés au root.
+- **Color-Mix & Transparence :** Utilisation de `color-mix(in srgb, var(--lumina-bg-secondary), transparent 25%)` pour les effets de verre (glassmorphism), permettant une adaptation parfaite aux thèmes clairs et sombres.
+- **Distinction des Palettes :** Restauration des fondations **Zinc (Gris Neutre)** pour le mode sombre du thème "Clair", le distinguant nettement du **Slate (Bleu Ardoise)** du thème "Minuit".
+
+#### 2. Correction Critique du Rendu (`PdfViewer.tsx`)
+- **Logique d'Inversion (SVG Filter) :** Identification de la cause des flashs : le filtre SVG (Blanc -> Sombre) inversait les conteneurs déjà sombres en blanc. Fix : Le fond de `LazyPage` est désormais forcé en blanc quand un filtre est actif, garantissant une transformation correcte vers la couleur de papier cible.
+- **Suppression des Bordures :** Nettoyage des `box-shadow` et `border` résiduels sur les conteneurs de pages pour un document qui "flotte" proprement sur son arrière-plan.
+- **Performance de Scroll :** Augmentation du `rootMargin` à **2000px** pour le pré-rendu des pages, éliminant les zones vides lors d'un scroll rapide.
+
+#### 3. Refonte des Composants UI (`Toolbar.tsx`, `ThemeSelector.tsx`)
+- **Totalement Agnostiques :** Suppression de tous les `bg-[#hex]` et `text-[#hex]`. Les composants utilisent désormais uniquement les utilitaires `.glass-premium`, `.dropdown-premium` et `.btn-action`.
+- **Accessibilité :** Amélioration des contrastes dans le thème clair (Text Slate-900 sur fond Slate-100).
+
+---
+
+### Résumé des modifications
+
+| Action | Statut |
+|---------|--------|
+| Unification Thèmes (CSS Vars) | ✅ Déployé |
+| Fix Flashs/Bordures Blanches | ✅ Résolu |
+| Optimisation Pre-rendering | ✅ 2000px |
+| Lisibilité Toolbar (Clair) | ✅ Corrigé |
+| Build Production | ✅ OK |
+
+**Résultat :** ✅ LuminaPDF atteint un niveau de finition premium. Le moteur de rendu est stable, sans artefacts, et l'identité visuelle est parfaitement cohérente à travers tous les thèmes.
+

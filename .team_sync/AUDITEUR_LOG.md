@@ -1271,3 +1271,15 @@ requestAnimationFrame(() => requestAnimationFrame(centerDocument));
 - La stabilité du zoom est confirmée : l'ancrage utilise désormais `contentRef.current.scrollWidth` comme base invariante, éliminant la dérive vers la droite observée lors de l'usage de `container.scrollWidth`.
 
 **Verdict :** ✅ Architecture validée. Les bugs de visée et de navigation sont résolus.
+
+---
+
+## 2026-02-13 — Audit de Clôture : Excellence Visuelle & Rendu
+
+**Diagnostic :**
+- **Artefacts de Rendu :** Le "flash blanc" observé lors des transitions a été résolu en corrigeant la couleur de base du conteneur `LazyPage` (forcé en blanc lors de l'application du filtre d'inversion SVG). La bordure blanche résiduelle a été éliminée par la suppression des ombres et bordures fixées en dur.
+- **Cohérence des Thèmes :** Le passage aux variables CSS natives (`--lumina-*`) assure une synchronisation parfaite entre le moteur de rendu PDF et l'UI applicative. Les composants premium (`glass-premium`, `dropdown-premium`) sont désormais agnostiques et s'adaptent dynamiquement.
+- **Lisibilité :** Validation du contraste pour le thème "Clair". L'utilisation de `color-mix` permet de conserver une transparence premium tout en garantissant la lisibilité du texte sur tous les arrière-plans.
+- **Performance :** L'augmentation du budget de pré-rendu (2000px) garantit une fluidité visuelle même lors d'un défilement vertical rapide à haut niveau de zoom.
+
+**Verdict Final :** ✅ Excellence visuelle atteinte. LuminaPDF est prêt pour la production avec une expérience utilisateur fluide et sans défauts visuels.
