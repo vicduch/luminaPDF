@@ -129,23 +129,26 @@ const AiPanel: React.FC<AiPanelProps> = ({ isOpen, onClose, currentPageText, pdf
   return (
     <div
       className={`
-        flex flex-col min-w-0 transition-all duration-500 cubic-bezier(0.34, 1.56, 0.64, 1) h-full
+        flex flex-col min-w-0 transition-all duration-500 cubic-bezier(0.16, 1, 0.3, 1) h-full
         ${isOpen
-          ? 'fixed inset-0 z-50 md:relative md:inset-auto md:z-auto md:w-[380px] opacity-100 translate-x-0 border-l'
+          ? 'fixed inset-0 z-50 md:relative md:inset-auto md:z-auto md:w-[380px] lg:w-[420px] opacity-100 translate-x-0 border-l'
           : 'w-0 opacity-0 translate-x-10 overflow-hidden'
         }
-        ${colors}
+        ${colors} glass-premium
       `}
     >
       <div className="flex flex-col h-full min-w-0">
         {/* Header with Configuration */}
         <div className={`p-4 border-b flex flex-col gap-3 flex-shrink-0 ${isLight ? 'border-gray-200' : 'border-gray-700'}`}>
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 font-semibold">
-              <Sparkles className="text-blue-500" size={18} />
-              <span className="font-light tracking-wide">Assistant AI</span>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2">
+                <Sparkles className="text-violet-500" size={18} />
+                <span className="font-bold tracking-tight text-lg">Assistant IA</span>
+              </div>
+              <span className="text-[10px] uppercase tracking-widest opacity-40 font-bold mt-0.5">Propulsé par Gemini 3.0</span>
             </div>
-            <button onClick={onClose} className="p-1 hover:opacity-70 rounded">
+            <button onClick={onClose} className="btn-action !p-1.5 focus:bg-black/10 dark:focus:bg-white/10">
               <X size={18} />
             </button>
           </div>

@@ -43,7 +43,9 @@ import {
   LogOut,
   Home,
   FolderSearch,
-  Tablet
+  Tablet,
+  MoreHorizontal,
+  Menu
 } from 'lucide-react';
 
 export {
@@ -91,7 +93,9 @@ export {
   LogOut,
   Home,
   FolderSearch,
-  Tablet
+  Tablet,
+  MoreHorizontal,
+  Menu
 };
 
 export const GoogleDriveIcon = ({ size = 18 }: { size?: number }) => (

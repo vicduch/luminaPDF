@@ -184,23 +184,28 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme }) => {
     if (loading) return <div className="p-10 text-center opacity-50 flex flex-col items-center gap-2"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-current"></div>Chargement...</div>;
 
     return (
-        <div className="max-w-5xl mx-auto p-6 animate-fade-in">
+        <div className="max-w-6xl mx-auto p-8 animate-fade-in">
             {/* Header / Actions */}
-            <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-                <h2 className={`text-2xl font-light flex items-center gap-2 ${textPrimary}`}>
-                    <Clock size={24} className="opacity-70" />
-                    Tableau de bord
-                </h2>
+            <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6 border-b border-black/5 dark:border-white/5 pb-8">
+                <div className="flex flex-col">
+                    <h2 className={`text-3xl font-bold tracking-tight flex items-center gap-3 ${textPrimary}`}>
+                        <Clock size={28} className="text-violet-500 opacity-80" />
+                        Tableau de bord
+                    </h2>
+                    <p className={`text-sm mt-1 font-medium opacity-50 ${textSecondary}`}>
+                        Gérez vos lectures et documents récents
+                    </p>
+                </div>
 
                 <div className="flex items-center gap-3">
                     {isCloudEnabled && (
                         !user ? (
                             <button
                                 onClick={handleLogin}
-                                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-md transition-all"
+                                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white shadow-lg shadow-violet-500/20 transition-all font-semibold text-sm active:scale-95"
                             >
                                 <LogIn size={18} />
-                                Connexion
+                                Connexion Cloud
                             </button>
                         ) : (
                             <>
@@ -208,10 +213,10 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme }) => {
                                     onClick={handleDriveOpen}
                                     disabled={isDriving}
                                     className={`
-                                        flex items-center gap-2 px-4 py-2 rounded-lg transition-all
-                                        bg-white dark:bg-zinc-800 shadow-sm border border-gray-200 dark:border-zinc-700
+                                        flex items-center gap-2 px-5 py-2.5 rounded-xl transition-all font-semibold text-sm
+                                        bg-white dark:bg-zinc-800 shadow-sm border border-black/5 dark:border-white/5
                                         hover:bg-gray-50 dark:hover:bg-zinc-700/80 ${textPrimary}
-                                        ${isDriving ? 'opacity-50 cursor-not-allowed' : ''}
+                                        ${isDriving ? 'opacity-50 cursor-not-allowed' : 'active:scale-95'}
                                     `}
                                 >
                                     {isDriving ? (
@@ -222,16 +227,17 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme }) => {
                                     Google Drive
                                 </button>
 
-                                <div className="flex items-center gap-3 bg-white dark:bg-zinc-800 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-zinc-700 shadow-sm">
-                                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
+                                <div className="flex items-center gap-3 bg-white dark:bg-zinc-800 px-4 py-2 rounded-xl border border-black/5 dark:border-white/5 shadow-sm">
+                                    <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-xs font-bold shadow-sm">
                                         {user.email?.charAt(0).toUpperCase()}
                                     </div>
-                                    <div className="hidden sm:block text-sm">
-                                        <p className={textPrimary}>{user.email}</p>
+                                    <div className="hidden sm:block text-xs">
+                                        <p className={`font-bold ${textPrimary}`}>{user.email?.split('@')[0]}</p>
+                                        <p className="opacity-40 font-medium">Connecté</p>
                                     </div>
                                     <button
                                         onClick={handleLogout}
-                                        className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-700 text-gray-500 transition-colors"
+                                        className="p-1.5 rounded-lg hover:bg-red-500/10 text-gray-400 hover:text-red-500 transition-colors"
                                         title="Déconnexion"
                                     >
                                         <LogOut size={16} />
@@ -245,76 +251,83 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme }) => {
 
             {/* Empty State */}
             {files.length === 0 ? (
-                <div className="flex flex-col items-center justify-center p-16 mt-4 border-2 border-dashed border-gray-200 dark:border-zinc-800 rounded-2xl opacity-60">
-                    <Cloud size={64} className="mb-4 opacity-50" />
-                    <h3 className={`text-xl font-medium ${textPrimary}`}>Aucun document récent</h3>
-                    <p className={`mt-2 ${textSecondary}`}>
-                        Ouvrez un fichier local ou depuis Google Drive pour commencer
+                <div className="flex flex-col items-center justify-center p-20 mt-4 border-2 border-dashed border-black/5 dark:border-white/5 rounded-[32px] bg-black/5 dark:bg-white/5">
+                    <Cloud size={64} className="mb-6 text-violet-500 opacity-20" />
+                    <h3 className={`text-2xl font-bold tracking-tight ${textPrimary}`}>Bibliothèque vide</h3>
+                    <p className={`mt-2 font-medium opacity-50 text-center max-w-sm ${textSecondary}`}>
+                        Glissez-déposez un PDF ici ou utilisez le bouton ci-dessous pour démarrer.
                     </p>
-                    <label className="mt-6 cursor-pointer bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl shadow-lg transition-transform hover:scale-105 active:scale-95 font-medium flex items-center gap-2">
-                        <FileText size={20} />
-                        Ouvrir un PDF local
+                    <label className="mt-8 cursor-pointer bg-violet-600 hover:bg-violet-700 text-white px-8 py-4 rounded-2xl shadow-xl shadow-violet-500/20 transition-all hover:scale-105 active:scale-95 font-bold flex items-center gap-3">
+                        <HardDrive size={22} />
+                        Parcourir mes fichiers
                         <input type="file" accept="application/pdf" onChange={(e) => {
                             if (e.target.files?.[0]) onFileSelect(e.target.files[0]);
                         }} className="hidden" />
                     </label>
                 </div>
             ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-8">
                     {files.map(file => {
                         return (
                             <div
                                 key={file.id}
                                 onClick={() => handleOpen(file)}
                                 className={`
-                                    group relative flex flex-col items-center p-4 rounded-2xl transition-all cursor-pointer
+                                    group relative flex flex-col items-center p-3 rounded-[24px] transition-all duration-300 cursor-pointer
                                     ${cardBg} active:scale-95
-                                    hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:hover:shadow-[0_8px_30px_rgb(0,0,0,0.2)]
+                                    hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_20px_50px_rgba(0,0,0,0.3)]
+                                    border border-transparent hover:border-black/5 dark:hover:border-white/10
                                 `}
                             >
                                 {/* Delete button - Absolute top right */}
                                 <button
                                     onClick={(e) => handleDelete(e, file.id)}
-                                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-1.5 rounded-full hover:bg-red-500/10 text-red-500 transition-all z-10"
+                                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-2 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all z-10 shadow-sm"
                                     title="Supprimer"
                                 >
                                     <Trash2 size={14} />
                                 </button>
 
                                 {/* Cover / Thumbnail */}
-                                {file.thumbnail ? (
-                                    <div className="w-24 h-32 mb-3 rounded-lg overflow-hidden shadow-md transition-transform group-hover:scale-105 border border-black/5 dark:border-white/10">
+                                <div className="relative w-full aspect-[3/4] mb-4 rounded-2xl overflow-hidden shadow-lg transition-all group-hover:shadow-2xl group-hover:-translate-y-1">
+                                    {file.thumbnail ? (
                                         <img
                                             src={file.thumbnail}
                                             alt={file.name}
                                             className="w-full h-full object-cover"
                                             draggable={false}
                                         />
+                                    ) : (
+                                        <div className={`
+                                            w-full h-full flex items-center justify-center
+                                            bg-gradient-to-br from-violet-500/20 to-fuchsia-500/10 dark:from-violet-500/30 dark:to-fuchsia-500/20
+                                        `}>
+                                            <FileText size={48} className="text-violet-500 opacity-40 group-hover:scale-110 transition-transform duration-500" />
+                                        </div>
+                                    )}
+
+                                    {/* Overlay Info */}
+                                    <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <p className="text-[10px] text-white font-bold uppercase tracking-widest leading-none">
+                                            {file.size ? `${(file.size / (1024 * 1024)).toFixed(1)} Mo` : 'PDF'}
+                                        </p>
                                     </div>
-                                ) : (
-                                    <div className={`
-                                        w-24 h-32 mb-3 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105
-                                        bg-gradient-to-br from-red-500/10 to-red-600/5 dark:from-red-500/20 dark:to-red-600/10
-                                        border border-red-500/10 dark:border-red-500/20 shadow-sm
-                                    `}>
-                                        <FileText size={40} className="text-red-500 opacity-80" />
-                                    </div>
-                                )}
+                                </div>
 
                                 {/* File Name */}
-                                <div className="w-full text-center">
+                                <div className="w-full text-center px-1">
                                     <h3
-                                        className={`text-sm font-medium leading-tight line-clamp-2 px-2 ${textPrimary}`}
+                                        className={`text-xs font-bold leading-snug line-clamp-2 min-h-[32px] ${textPrimary} tracking-tight`}
                                         title={file.name}
                                     >
                                         {file.name}
                                     </h3>
 
-                                    {/* Annotations badge if any (kept as it's useful context) */}
+                                    {/* Annotations badge */}
                                     {file.annotations && file.annotations.length > 0 && (
-                                        <div className="mt-1 flex justify-center">
-                                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold border border-amber-500/20">
-                                                {file.annotations.length} note{file.annotations.length > 1 ? 's' : ''}
+                                        <div className="mt-2 flex justify-center">
+                                            <span className="text-[9px] px-2 py-0.5 rounded-lg bg-amber-500 text-white font-bold shadow-sm shadow-amber-500/30 animate-pulse">
+                                                {file.annotations.length} NOTE{file.annotations.length > 1 ? 'S' : ''}
                                             </span>
                                         </div>
                                     )}

@@ -19,7 +19,8 @@ import {
   FolderSearch,
   Sun,
   Moon,
-  Clock
+  Clock,
+  MoreHorizontal
 } from './Icons';
 import { ToolbarProps, ViewMode, AppTheme, ScrollMode, ThemeVariant } from '../types';
 import ThemeSelector from './ThemeSelector';
@@ -71,19 +72,23 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
   const [isColorMenuOpen, setIsColorMenuOpen] = useState(false);
   const [isRecentsOpen, setIsRecentsOpen] = useState(false);
+  const [isMoreOpen, setIsMoreOpen] = useState(false);
   const recentsRef = useRef<HTMLDivElement>(null);
+  const moreRef = useRef<HTMLDivElement>(null);
 
-  // Close recents dropdown on outside click
+  // Close menus on outside click
   useEffect(() => {
-    if (!isRecentsOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
       if (recentsRef.current && !recentsRef.current.contains(e.target as Node)) {
         setIsRecentsOpen(false);
       }
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
+        setIsMoreOpen(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isRecentsOpen]);
+  }, []);
 
   if (!isVisible) return null;
 
@@ -97,15 +102,15 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
   const getMenuTheme = () => {
     switch (theme) {
-      case AppTheme.LIGHT: return 'bg-[#F8FAFC] border-gray-200';
-      case AppTheme.SEPIA: return 'bg-[#FDF6E3] border-[#E8D5B5]';
-      case AppTheme.SOLARIZED: return 'bg-[#FDF6E3] border-[#D9CDB4]';
-      case AppTheme.DARK: return 'bg-[#111111] border-zinc-800';
-      case AppTheme.MIDNIGHT: return 'bg-[#1E293B] border-[#334155]';
-      case AppTheme.OLED: return 'bg-black border-zinc-900';
-      case AppTheme.FOREST: return 'bg-[#14532D] border-[#166534]';
-      case AppTheme.EINK: return 'bg-[#d4d4d4] border-[#a3a3a3]';
-      default: return 'bg-white border-gray-200';
+      case AppTheme.LIGHT: return 'bg-white/80 border-gray-200';
+      case AppTheme.SEPIA: return 'bg-[#FDF6E3]/90 border-[#E8D5B5]';
+      case AppTheme.SOLARIZED: return 'bg-[#FDF6E3]/90 border-[#D9CDB4]';
+      case AppTheme.DARK: return 'bg-[#111111]/90 border-zinc-800';
+      case AppTheme.MIDNIGHT: return 'bg-[#1E293B]/90 border-[#334155]';
+      case AppTheme.OLED: return 'bg-black/90 border-zinc-900';
+      case AppTheme.FOREST: return 'bg-[#14532D]/90 border-[#166534]';
+      case AppTheme.EINK: return 'bg-[#d4d4d4]/90 border-[#a3a3a3]';
+      default: return 'bg-white/90 border-gray-200';
     }
   };
 
@@ -114,54 +119,56 @@ const Toolbar: React.FC<ToolbarProps> = ({
   // Get toolbar background/text colors based on theme
   const getToolbarClasses = () => {
     switch (theme) {
-      case AppTheme.LIGHT: return 'bg-[#F8FAFC] border-gray-200 text-slate-700';
-      case AppTheme.SEPIA: return 'bg-[#FDF6E3] border-[#E8D5B5] text-[#5C4827]';
-      case AppTheme.SOLARIZED: return 'bg-[#FDF6E3] border-[#D9CDB4] text-[#657B83]';
-      case AppTheme.DARK: return 'bg-[#0A0A0A] border-zinc-800 text-gray-200';
-      case AppTheme.MIDNIGHT: return 'bg-[#0F172A] border-[#334155] text-[#E2E8F0]';
-      case AppTheme.OLED: return 'bg-black border-zinc-900 text-gray-300';
-      case AppTheme.FOREST: return 'bg-[#052E16] border-[#166534] text-[#DCFCE7]';
-      case AppTheme.EINK: return 'bg-[#bebebe] border-[#a3a3a3] text-[#111111]';
-      default: return 'bg-white border-gray-200 text-slate-700';
+      case AppTheme.LIGHT: return 'bg-[#F8FAFC]/70 border-gray-200/50 text-slate-700';
+      case AppTheme.SEPIA: return 'bg-[#FDF6E3]/70 border-[#E8D5B5]/50 text-[#5C4827]';
+      case AppTheme.SOLARIZED: return 'bg-[#FDF6E3]/70 border-[#D9CDB4]/50 text-[#657B83]';
+      case AppTheme.DARK: return 'bg-[#0A0A0A]/70 border-zinc-800/50 text-gray-200';
+      case AppTheme.MIDNIGHT: return 'bg-[#0F172A]/70 border-[#334155]/50 text-[#E2E8F0]';
+      case AppTheme.OLED: return 'bg-black/70 border-zinc-900/50 text-gray-300';
+      case AppTheme.FOREST: return 'bg-[#052E16]/70 border-[#166534]/50 text-[#DCFCE7]';
+      case AppTheme.EINK: return 'bg-[#bebebe]/70 border-[#a3a3a3]/50 text-[#111111]';
+      default: return 'bg-white/70 border-gray-200/50 text-slate-700';
     }
   };
 
   return (
     <div className={`
-      h-12 md:h-14 border-b flex items-center justify-between px-2 md:px-4 transition-theme z-40 relative flex-shrink-0 shadow-sm
+      h-12 md:h-14 border-b flex items-center justify-between px-2 md:px-4 transition-theme z-40 relative flex-shrink-0 shadow-sm glass-premium
       ${getToolbarClasses()}
     `}>
-      {/* Left: File Loading & Outline */}
-      <div className="flex items-center gap-0.5 md:gap-1.5 flex-shrink-0">
+      {/* Left Area: Navigation & Tools */}
+      <div className="flex items-center gap-1 md:gap-2 lg:gap-3 flex-shrink-0">
         <button
           onClick={onHome}
-          className="btn-premium p-1.5 md:p-2 rounded-lg hover:bg-violet-500/10 dark:hover:bg-violet-500/20 transition"
+          className="btn-action hover:text-violet-500"
           title="Accueil"
         >
           <Home size={18} />
         </button>
 
+        <div className="h-4 w-px bg-current opacity-10 mx-1 hidden sm:block"></div>
+
         {file && (
           <button
             onClick={toggleOutline}
-            className={`p-1.5 md:p-2 rounded-md transition-all duration-300 ${isOutlineOpen ? 'bg-black/10 dark:bg-white/20' : 'hover:bg-black/5 dark:hover:bg-white/10'}`}
+            className={`btn-action ${isOutlineOpen ? 'active' : ''}`}
             title="Sommaire"
           >
             <List size={18} />
           </button>
         )}
 
-        <label className="cursor-pointer p-1.5 md:p-2 rounded-md hover:bg-black/5 dark:hover:bg-white/10 transition" title="Ouvrir un fichier PDF">
+        <label className="btn-action cursor-pointer group" title="Ouvrir un fichier PDF">
           <input type="file" accept="application/pdf" onChange={onFileChange} className="hidden" />
-          <FolderSearch size={18} />
+          <FolderSearch size={18} className="group-hover:scale-110 transition-transform" />
         </label>
 
         {/* Recent Files Dropdown */}
         {recentFiles.length > 0 && (
-          <div className="relative" ref={recentsRef}>
+          <div className="relative group/recents" ref={recentsRef}>
             <button
               onClick={() => setIsRecentsOpen(!isRecentsOpen)}
-              className={`p-1.5 md:p-2 rounded-md transition-all duration-300 ${isRecentsOpen ? 'bg-black/10 dark:bg-white/20' : 'hover:bg-black/5 dark:hover:bg-white/10'}`}
+              className={`btn-action ${isRecentsOpen ? 'active' : ''}`}
               title="Fichiers récents"
             >
               <Clock size={18} />
@@ -169,80 +176,96 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
             {isRecentsOpen && (
               <div className={`
-                absolute top-full left-0 mt-2 w-64 md:w-72 rounded-xl shadow-2xl border z-50 overflow-hidden
-                ${getMenuTheme()}
+                absolute top-full left-0 mt-3 w-64 md:w-80 dropdown-premium z-50
+                ${menuThemeClass}
               `}>
-                <div className="px-3 py-2 border-b border-black/10 dark:border-white/10">
-                  <span className="text-xs font-semibold uppercase tracking-wider opacity-60">Récents</span>
+                <div className="px-4 py-3 border-b border-black/5 dark:border-white/5 bg-black/5 dark:bg-white/5">
+                  <span className="text-[10px] font-bold uppercase tracking-widest opacity-50">Dernières lectures</span>
                 </div>
-                {recentFiles.slice(0, 5).map((f) => {
-                  const ago = getRelativeTime(f.lastVisited);
-                  return (
-                    <button
-                      key={f.id}
-                      onClick={() => {
-                        onOpenRecentFile?.(f.id);
-                        setIsRecentsOpen(false);
-                      }}
-                      className="w-full text-left px-3 py-2.5 hover:bg-black/5 dark:hover:bg-white/10 transition flex items-center gap-3 group"
-                    >
-                      <FileText size={16} className="shrink-0 opacity-50 group-hover:opacity-100 transition" />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{f.name}</p>
-                        <p className="text-xs opacity-50">{ago}</p>
-                      </div>
-                    </button>
-                  );
-                })}
+                <div className="max-h-[320px] overflow-y-auto">
+                  {recentFiles.slice(0, 8).map((f) => {
+                    const ago = getRelativeTime(f.lastVisited);
+                    return (
+                      <button
+                        key={f.id}
+                        onClick={() => {
+                          onOpenRecentFile?.(f.id);
+                          setIsRecentsOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-3 hover:bg-black/5 dark:hover:bg-white/5 transition flex items-center gap-4 group/item border-b border-black/5 last:border-0 dark:border-white/5"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0">
+                          <FileText size={16} className="text-violet-500 opacity-70 group-hover/item:opacity-100 transition" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[13px] font-semibold truncate leading-tight">{f.name}</p>
+                          <p className="text-[10px] opacity-40 mt-1 font-medium">{ago}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
         )}
       </div>
 
-      {/* Center: Pagination & Zoom — flexbox based, no absolute positioning */}
-      <div className="flex-1 flex items-center justify-center gap-1 md:gap-2 min-w-0 mx-1">
-        <div className="flex items-center bg-black/5 dark:bg-white/5 rounded-lg p-0.5 md:p-1 shadow-inner">
+      {/* Center Area: Page Control — Hidden on very small mobile */}
+      <div className="flex-1 flex items-center justify-center gap-2 md:gap-4 min-w-0 px-2 lg:px-6">
+        <div className="flex items-center bg-black/10 dark:bg-white/10 rounded-xl p-1 shadow-inner h-9 md:h-10">
           <button
             disabled={pageNumber <= 1 || scrollMode === ScrollMode.CONTINUOUS}
             onClick={() => setPageNumber(pageNumber - 1)}
-            className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30"
+            className="p-1 px-2 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-30 transition-all shrink-0"
           >
             <ChevronLeft size={16} />
           </button>
-          <span className="text-xs md:text-sm font-mono w-14 md:w-20 text-center select-none font-medium">
-            {numPages > 0 ? `${pageNumber} / ${numPages}` : '--'}
-          </span>
+
+          <div className="flex flex-col items-center justify-center px-1 md:px-3 min-w-[70px] md:min-w-[90px]">
+            <span className="text-[12px] md:text-[13px] font-bold select-none leading-none">
+              {numPages > 0 ? `${pageNumber} / ${numPages}` : '--'}
+            </span>
+            {file && (
+              <span className="text-[9px] opacity-40 truncate max-w-[60px] md:max-w-[100px] mt-0.5 hidden sm:block font-medium uppercase tracking-tighter">
+                {file instanceof File ? file.name : 'Document'}
+              </span>
+            )}
+          </div>
+
           <button
             disabled={pageNumber >= numPages || scrollMode === ScrollMode.CONTINUOUS}
             onClick={() => setPageNumber(pageNumber + 1)}
-            className="p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30"
+            className="p-1 px-2 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 disabled:opacity-30 transition-all shrink-0"
           >
             <ChevronRight size={16} />
           </button>
         </div>
 
-        {/* Zoom Controls — hidden below md */}
-        <div className="hidden md:flex items-center gap-1">
-          <button onClick={() => setScale(Math.max(0.1, scale / 1.25))} className="p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10" title="Zoom Arrière">
-            <ZoomOut size={18} />
+        {/* Zoom Controls */}
+        <div className="hidden lg:flex items-center gap-1 bg-black/5 dark:bg-white/5 rounded-xl p-1 h-9 md:h-10">
+          <button onClick={() => setScale(Math.max(0.1, scale / 1.15))} className="btn-action !p-1.5" title="Zoom Arrière">
+            <ZoomOut size={16} />
           </button>
-          <span className="text-xs w-12 text-center font-medium">{Math.round(scale * 100)}%</span>
-          <button onClick={() => setScale(Math.min(8.0, scale * 1.25))} className="p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10" title="Zoom Avant">
-            <ZoomIn size={18} />
+          <div className="text-[12px] w-12 text-center font-bold tracking-tight">
+            {Math.round(scale * 100)}%
+          </div>
+          <button onClick={() => setScale(Math.min(8.0, scale * 1.15))} className="btn-action !p-1.5" title="Zoom Avant">
+            <ZoomIn size={16} />
           </button>
-          <button onClick={onFitToWidth} className="p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10" title="Ajuster à l'écran">
-            <Scan size={18} />
+          <div className="w-px h-4 bg-current opacity-10 mx-1"></div>
+          <button onClick={onFitToWidth} className="btn-action !p-1.5" title="Ajuster">
+            <Scan size={16} />
           </button>
         </div>
       </div>
 
-      {/* Right: View Modes & Settings */}
-      <div className="flex items-center gap-0.5 md:gap-1.5 flex-shrink-0">
-        {/* Fit Width — mobile only */}
+      {/* Right Area: Secondary Tools & Customization */}
+      <div className="flex items-center gap-0.5 md:gap-1 lg:gap-2 flex-shrink-0">
+        {/* Fit Width — visible on mobile/tablet until lg */}
         <button
           onClick={onFitToWidth}
-          className="md:hidden p-1.5 rounded-md hover:bg-black/5 dark:hover:bg-white/10 transition"
+          className="lg:hidden btn-action"
           title="Ajuster"
         >
           <Scan size={18} />
@@ -256,19 +279,13 @@ const Toolbar: React.FC<ToolbarProps> = ({
         >
           <button
             onClick={toggleAnnotationMode}
-            className={`
-              p-1.5 md:p-2 rounded-md transition-all duration-300 flex items-center justify-center relative
-              ${isAnnotationMode
-                ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300 ring-1 ring-blue-200 dark:ring-blue-700 shadow-sm'
-                : 'hover:bg-black/5 dark:hover:bg-white/10 opacity-70 hover:opacity-100'
-              }
-            `}
+            className={`btn-action relative ${isAnnotationMode ? 'active' : ''}`}
             title={isAnnotationMode ? "Désactiver les annotations" : "Activer les annotations"}
           >
-            <MessageSquare size={16} />
+            <MessageSquare size={17} />
             {isAnnotationMode && (
               <span
-                className="absolute bottom-0.5 right-0.5 w-2 h-2 rounded-full ring-2 ring-white dark:ring-slate-900"
+                className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full ring-1 ring-white dark:ring-slate-900 shadow-sm"
                 style={{ backgroundColor: annotationColor }}
               />
             )}
@@ -276,15 +293,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
           {/* Color Menu Dropdown */}
           {isAnnotationMode && isColorMenuOpen && (
-            <div className="absolute top-full left-1/2 -translate-x-1/2 pt-3 z-50 animate-pop-in">
-              <div className={`
-                p-2.5 rounded-xl shadow-xl border flex gap-3 relative
-                ${menuThemeClass}
-              `}>
-                <div className={`
-                  absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 border-l border-t transform rotate-45
-                  ${menuThemeClass}
-                `} />
+            <div className="absolute top-full left-1/2 -translate-x-1/2 pt-4 z-50 animate-pop-in">
+              <div className={`p-2.5 dropdown-premium flex gap-3 ${menuThemeClass}`}>
                 {COLORS.map(color => (
                   <button
                     key={color.value}
@@ -308,57 +318,112 @@ const Toolbar: React.FC<ToolbarProps> = ({
         {/* AI Trigger */}
         <button
           onClick={toggleAiPanel}
-          className="btn-premium btn-premium-glow p-1.5 md:p-2 rounded-lg transition-all duration-300 hover:bg-violet-500/10 dark:hover:bg-violet-500/20 hover:text-violet-500"
+          className="btn-action hover:text-violet-500 group"
           title="Assistant IA"
         >
-          <Sparkles size={18} />
+          <Sparkles size={18} className="group-hover:animate-soft-pulse" />
         </button>
 
-        <div className="h-5 w-px bg-current opacity-10 mx-0.5 hidden md:block"></div>
+        <div className="h-4 w-px bg-current opacity-10 mx-1 hidden sm:block"></div>
 
-        {/* Hidden below md: Scroll Mode, View Mode, Fullscreen */}
-        <button
-          onClick={() => setScrollMode(scrollMode === ScrollMode.PAGED ? ScrollMode.CONTINUOUS : ScrollMode.PAGED)}
-          className="p-1.5 md:p-2 rounded-md hover:bg-black/5 dark:hover:bg-white/10 transition hidden md:block"
-          title={scrollMode === ScrollMode.PAGED ? "Défilement vertical" : "Mode page par page"}
-        >
-          {scrollMode === ScrollMode.PAGED ? <GalleryHorizontal size={18} /> : <GalleryVertical size={18} />}
-        </button>
+        {/* View Mode Controls — Hidden below lg */}
+        <div className="hidden lg:flex items-center gap-1">
+          <button
+            onClick={() => setScrollMode(scrollMode === ScrollMode.PAGED ? ScrollMode.CONTINUOUS : ScrollMode.PAGED)}
+            className="btn-action"
+            title={scrollMode === ScrollMode.PAGED ? "Défilement vertical" : "Mode page par page"}
+          >
+            {scrollMode === ScrollMode.PAGED ? <GalleryHorizontal size={18} /> : <GalleryVertical size={18} />}
+          </button>
 
-        <button
-          onClick={() => setViewMode(viewMode === ViewMode.SINGLE ? ViewMode.DOUBLE : ViewMode.SINGLE)}
-          className={`p-1.5 md:p-2 rounded-md hover:bg-black/5 dark:hover:bg-white/10 transition hidden md:block ${scrollMode === ScrollMode.CONTINUOUS ? 'opacity-50 cursor-not-allowed' : ''}`}
-          disabled={scrollMode === ScrollMode.CONTINUOUS}
-          title={viewMode === ViewMode.SINGLE ? "Vue deux pages" : "Vue une page"}
-        >
-          {viewMode === ViewMode.SINGLE ? <BookOpen size={18} /> : <FileText size={18} />}
-        </button>
+          <button
+            onClick={() => setViewMode(viewMode === ViewMode.SINGLE ? ViewMode.DOUBLE : ViewMode.SINGLE)}
+            className={`btn-action ${scrollMode === ScrollMode.CONTINUOUS ? 'opacity-30 cursor-not-allowed' : ''}`}
+            disabled={scrollMode === ScrollMode.CONTINUOUS}
+            title={viewMode === ViewMode.SINGLE ? "Vue deux pages" : "Vue une page"}
+          >
+            {viewMode === ViewMode.SINGLE ? <BookOpen size={18} /> : <FileText size={18} />}
+          </button>
+        </div>
 
         <ThemeSelector currentTheme={theme} setTheme={setTheme} />
 
         <button
           onClick={() => setThemeVariant(themeVariant === 'light' ? 'dark' : 'light')}
-          className="p-1.5 md:p-2 rounded-md hover:bg-black/5 dark:hover:bg-white/10 transition"
+          className="btn-action"
           title={themeVariant === 'light' ? 'Mode sombre' : 'Mode clair'}
         >
           {themeVariant === 'light' ? <Moon size={18} /> : <Sun size={18} />}
         </button>
 
-        <button
-          onClick={toggleFullscreen}
-          className="p-1.5 md:p-2 rounded-md hover:bg-black/5 dark:hover:bg-white/10 transition hidden md:block"
-          title="Plein écran"
-        >
-          {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
-        </button>
+        {/* More Menu — visible below xl */}
+        <div className="relative" ref={moreRef}>
+          <button
+            onClick={() => setIsMoreOpen(!isMoreOpen)}
+            className={`btn-action xl:hidden ${isMoreOpen ? 'active' : ''}`}
+            title="Plus d'outils"
+          >
+            <MoreHorizontal size={18} />
+          </button>
 
-        <button
-          onClick={toggleVisibility}
-          className="p-1.5 md:p-2 rounded-md hover:bg-black/5 dark:hover:bg-white/10 transition opacity-50 hover:opacity-100"
-          title="Masquer la barre"
-        >
-          <ChevronUp size={18} />
-        </button>
+          {isMoreOpen && (
+            <div className={`absolute top-full right-0 mt-3 w-56 dropdown-premium z-50 p-1.5 flex flex-col gap-1 ${menuThemeClass}`}>
+              <button
+                onClick={() => { setScrollMode(scrollMode === ScrollMode.PAGED ? ScrollMode.CONTINUOUS : ScrollMode.PAGED); setIsMoreOpen(false); }}
+                className="w-full text-left px-3 py-2 hover:bg-black/5 dark:hover:bg-white/5 transition flex items-center gap-3 rounded-lg text-sm"
+              >
+                {scrollMode === ScrollMode.PAGED ? <GalleryHorizontal size={16} /> : <GalleryVertical size={16} />}
+                <span>{scrollMode === ScrollMode.PAGED ? "Défilement continu" : "Mode page par page"}</span>
+              </button>
+
+              <button
+                disabled={scrollMode === ScrollMode.CONTINUOUS}
+                onClick={() => { setViewMode(viewMode === ViewMode.SINGLE ? ViewMode.DOUBLE : ViewMode.SINGLE); setIsMoreOpen(false); }}
+                className="w-full text-left px-3 py-2 hover:bg-black/5 dark:hover:bg-white/5 transition flex items-center gap-3 rounded-lg text-sm disabled:opacity-30"
+              >
+                {viewMode === ViewMode.SINGLE ? <BookOpen size={16} /> : <FileText size={16} />}
+                <span>{viewMode === ViewMode.SINGLE ? "Vue deux pages" : "Vue une page"}</span>
+              </button>
+
+              <div className="h-px bg-current opacity-5 my-1 mx-2"></div>
+
+              <button
+                onClick={() => { toggleFullscreen(); setIsMoreOpen(false); }}
+                className="w-full text-left px-3 py-2 hover:bg-black/5 dark:hover:bg-white/5 transition flex items-center gap-3 rounded-lg text-sm"
+              >
+                {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+                <span>{isFullscreen ? "Quitter le plein écran" : "Plein écran"}</span>
+              </button>
+
+              <button
+                onClick={() => { toggleVisibility(); setIsMoreOpen(false); }}
+                className="w-full text-left px-3 py-2 hover:bg-black/5 dark:hover:bg-white/5 transition flex items-center gap-3 rounded-lg text-sm"
+              >
+                <ChevronUp size={16} />
+                <span>Masquer la barre</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Visibility & Fullscreen — Hidden below xl for density */}
+        <div className="hidden xl:flex items-center gap-1">
+          <button
+            onClick={toggleFullscreen}
+            className="btn-action"
+            title="Plein écran"
+          >
+            {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
+          </button>
+
+          <button
+            onClick={toggleVisibility}
+            className="btn-action opacity-40 hover:opacity-100"
+            title="Masquer la barre"
+          >
+            <ChevronUp size={18} />
+          </button>
+        </div>
       </div>
     </div>
   );

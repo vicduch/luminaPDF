@@ -54,19 +54,63 @@
 
 /* Premium button hover effects */
 .btn-premium {
-  transition: transform 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+  @apply relative overflow-hidden transition-all duration-300 ease-out;
 }
 
 .btn-premium:hover {
-  transform: scale(1.02);
+  @apply transform -translate-y-0.5;
 }
 
 .btn-premium:active {
-  transform: scale(0.98);
+  @apply transform scale-95;
 }
 
 .btn-premium-glow:hover {
-  box-shadow: 0 4px 12px var(--lumina-shadow);
+  box-shadow: 0 0 15px var(--lumina-shadow);
+}
+
+/* Glassmorphism & Premium Surfaces */
+.glass-premium {
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  background-color: rgba(var(--bg-rgb, 10, 10, 10), 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dropdown-premium {
+  @apply shadow-2xl rounded-2xl border overflow-hidden animate-pop-in;
+  backdrop-filter: blur(20px);
+}
+
+/* Specific Action Buttons */
+.btn-action {
+  @apply flex items-center justify-center p-2 rounded-xl transition-all duration-200 hover:bg-black/5 dark:hover:bg-white/10 active:scale-95;
+}
+
+.btn-action.active {
+  @apply bg-violet-500/10 text-violet-500 ring-1 ring-violet-500/20 shadow-sm;
+}
+
+/* Micro-animations */
+@keyframes soft-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(1.05);
+    opacity: 0.8;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-soft-pulse {
+  animation: soft-pulse 2s infinite ease-in-out;
 }
 
 /* Fade transitions */
