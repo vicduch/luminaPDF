@@ -10,7 +10,7 @@ import {
     onAuthStateChange
 } from '../services/supabase';
 import { openDrivePicker, downloadDriveFile } from '../services/drive';
-import { FileText, Clock, Trash2, HardDrive, LogIn, LogOut, Cloud, User } from './Icons';
+import { FileText, Clock, Trash2, HardDrive, LogIn, LogOut, Cloud, User, GoogleDriveIcon } from './Icons';
 import { AppTheme } from '../types';
 
 interface RecentFilesProps {
@@ -243,7 +243,7 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme }) => {
                                     {isDriving ? (
                                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
                                     ) : (
-                                        <HardDrive size={18} />
+                                        <GoogleDriveIcon size={18} />
                                     )}
                                     Google Drive
                                 </button>

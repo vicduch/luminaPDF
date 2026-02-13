@@ -32,10 +32,10 @@ export const initGoogleDrive = () => {
 
         const handleGapiLoad = () => {
             console.log("GAPI chargé, initialisation du client...");
-            window.gapi.load('client:picker', {
+            (window as any).gapi.load('client:picker', {
                 callback: async () => {
                     try {
-                        await window.gapi.client.init({
+                        await (window as any).gapi.client.init({
                             apiKey: API_KEY,
                             discoveryDocs: DISCOVERY_DOCS,
                         });
@@ -57,10 +57,13 @@ export const initGoogleDrive = () => {
         const handleGisLoad = () => {
             console.log("GIS (Identity) chargé.");
             try {
-                tokenClient = window.google.accounts.oauth2.initTokenClient({
+                tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
                     client_id: CLIENT_ID,
                     scope: SCOPES,
                     callback: '', // défini plus tard
+                    error_callback: (err: any) => {
+                        console.error("Erreur d'authentification Google Identity:", err);
+                    }
                 });
                 gisInited = true;
                 if (gapiInited) resolve();
@@ -90,46 +93,48 @@ export const openDrivePicker = (): Promise<DriveFile | null> => {
         }
 
         tokenClient.callback = async (response: any) => {
+            console.log("Flux OAuth terminé, réponse reçue:", response);
             if (response.error !== undefined) {
+                console.error("Erreur OAuth Google:", response);
                 reject(response);
                 return;
             }
+            console.log("Ouverture du Picker avec le token fourni.");
             createPicker(response.access_token);
         };
 
         // Trigger OAuth flow
-        if (window.gapi.client.getToken() === null) {
-            // Prompt the user to select a Google Account and ask for consent to share their data
-            // when establishing a new session.
+        console.log("Demande de Token d'accès Google...");
+        if ((window as any).gapi.client.getToken() === null) {
             tokenClient.requestAccessToken({ prompt: 'consent' });
         } else {
-            // Skip display of account chooser and consent dialog for an existing session.
             tokenClient.requestAccessToken({ prompt: '' });
         }
 
         function createPicker(accessToken: string) {
-            const view = new window.google.picker.DocsView(window.google.picker.ViewId.PDFS);
+            console.log("Construction du Picker Google...");
+            const view = new (window as any).google.picker.DocsView((window as any).google.picker.ViewId.PDFS);
             view.setMimeTypes('application/pdf');
 
-            const picker = new window.google.picker.PickerBuilder()
-                .enableFeature(window.google.picker.Feature.NAV_HIDDEN)
-                .enableFeature(window.google.picker.Feature.MULTISELECT_ENABLED)
+            const picker = new (window as any).google.picker.PickerBuilder()
+                .enableFeature((window as any).google.picker.Feature.NAV_HIDDEN)
+                .enableFeature((window as any).google.picker.Feature.MULTISELECT_ENABLED)
                 .setAppId(APP_ID)
                 .setOAuthToken(accessToken)
                 .addView(view)
-                .addView(new window.google.picker.DocsUploadView())
+                .addView(new (window as any).google.picker.DocsUploadView())
                 .setDeveloperKey(API_KEY)
                 .setCallback((data: any) => {
-                    if (data[window.google.picker.Response.ACTION] === window.google.picker.Action.PICKED) {
-                        const doc = data[window.google.picker.Response.DOCUMENTS][0];
+                    if (data[(window as any).google.picker.Response.ACTION] === (window as any).google.picker.Action.PICKED) {
+                        const doc = data[(window as any).google.picker.Response.DOCUMENTS][0];
                         resolve({
-                            id: doc[window.google.picker.Document.ID],
-                            name: doc[window.google.picker.Document.NAME],
-                            mimeType: doc[window.google.picker.Document.MIME_TYPE],
-                            url: doc[window.google.picker.Document.URL],
+                            id: doc[(window as any).google.picker.Document.ID],
+                            name: doc[(window as any).google.picker.Document.NAME],
+                            mimeType: doc[(window as any).google.picker.Document.MIME_TYPE],
+                            url: doc[(window as any).google.picker.Document.URL],
                             accessToken: accessToken
                         });
-                    } else if (data[window.google.picker.Response.ACTION] === window.google.picker.Action.CANCEL) {
+                    } else if (data[(window as any).google.picker.Response.ACTION] === (window as any).google.picker.Action.CANCEL) {
                         resolve(null);
                     }
                 })
