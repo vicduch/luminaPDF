@@ -710,7 +710,7 @@ function App() {
             {/* 2. Main Workspace */}
             <div className="flex-1 relative overflow-hidden z-10">
                 {!file ? (
-                    <RecentFiles onFileSelect={handleOpenFile} theme={theme} />
+                    <RecentFiles onFileSelect={handleOpenFile} theme={theme} themeVariant={themeVariant} />
                 ) : (
                     <div className="w-full h-full relative flex flex-row">
                         <div className="flex-1 relative h-full w-full overflow-hidden">

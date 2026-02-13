@@ -41,22 +41,6 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({ currentTheme, setTheme })
     setIsOpen(false);
   };
 
-  const getMenuBackground = () => {
-    switch (currentTheme) {
-      case AppTheme.LIGHT: return 'bg-white border-gray-200 text-gray-800';
-      case AppTheme.SOLARIZED: return 'bg-[#fdf6e3] border-[#eee8d5] text-[#586e75]';
-      case AppTheme.SEPIA: return 'bg-[#fcf7e9] border-[#e0d6b5] text-[#5b4636]';
-      case AppTheme.FOREST: return 'bg-[#1a2f23] border-[#2c4236] text-[#c1d1c8]';
-      case AppTheme.MIDNIGHT: return 'bg-[#0f172a] border-[#1e293b] text-[#94a3b8]';
-      case AppTheme.DARK: return 'bg-slate-900 border-gray-700 text-gray-200';
-      case AppTheme.OLED: return 'bg-black border-gray-800 text-gray-400';
-      case AppTheme.EINK: return 'bg-[#d4d4d4] border-[#a3a3a3] text-[#111111]';
-      default: return 'bg-white border-gray-200 text-gray-800';
-    }
-  };
-
-  const isLight = currentTheme === AppTheme.LIGHT || currentTheme === AppTheme.SEPIA || currentTheme === AppTheme.SOLARIZED;
-
   return (
     <div className="relative" ref={dropdownRef}>
       <button
@@ -74,7 +58,7 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({ currentTheme, setTheme })
       {isOpen && (
         <div className={`
             absolute right-0 mt-2 w-56 rounded-xl shadow-2xl border z-50 overflow-hidden py-1 animate-in fade-in zoom-in-95 duration-200 origin-top-right
-            ${getMenuBackground()}
+            bg-[var(--lumina-bg-secondary)] border-[var(--lumina-border)] text-[var(--lumina-text)]
         `}>
           <div className="px-3 py-2 text-xs font-semibold opacity-60 uppercase tracking-wider">
             Apparence

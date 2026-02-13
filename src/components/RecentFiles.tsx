@@ -11,24 +11,25 @@ import {
 } from '../services/supabase';
 import { openDrivePicker, downloadDriveFile } from '../services/drive';
 import { FileText, Clock, Trash2, HardDrive, LogIn, LogOut, Cloud, User, GoogleDriveIcon } from './Icons';
-import { AppTheme } from '../types';
+import { AppTheme, ThemeVariant } from '../types';
 
 interface RecentFilesProps {
     onFileSelect: (file: File) => void;
     theme: AppTheme;
+    themeVariant: ThemeVariant;
 }
 
-const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme }) => {
+const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme, themeVariant }) => {
     const [files, setFiles] = useState<RecentFileMetadata[]>([]);
     const [loading, setLoading] = useState(true);
     const [user, setUser] = useState<any>(null);
     const [isCloudEnabled, setIsCloudEnabled] = useState(false);
 
-    // Theme helpers
-    const isDark = theme !== AppTheme.LIGHT && theme !== AppTheme.SEPIA && theme !== AppTheme.SOLARIZED;
+    // Theme helpers - Use themeVariant instead of manual theme list
+    const isDark = themeVariant === 'dark';
     const cardBg = isDark ? 'bg-white/5 hover:bg-white/10' : 'bg-black/5 hover:bg-black/10';
-    const textPrimary = isDark ? 'text-gray-200' : 'text-gray-800';
-    const textSecondary = isDark ? 'text-gray-400' : 'text-gray-500';
+    const textPrimary = 'text-[var(--lumina-text)]';
+    const textSecondary = 'text-[var(--lumina-text-muted)]';
 
     useEffect(() => {
         setIsCloudEnabled(isSupabaseconfigured());

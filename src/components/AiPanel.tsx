@@ -109,21 +109,8 @@ const AiPanel: React.FC<AiPanelProps> = ({ isOpen, onClose, currentPageText, pdf
     setLoading(false);
   };
 
-  const getThemeColors = () => {
-    switch (theme) {
-      case AppTheme.LIGHT: return 'bg-[#F8FAFC] border-gray-200 text-gray-800';
-      case AppTheme.SEPIA: return 'bg-[#FDF6E3] border-[#E8D5B5] text-[#5C4827]';
-      case AppTheme.SOLARIZED: return 'bg-[#FDF6E3] border-[#D9CDB4] text-[#657B83]';
-      case AppTheme.DARK: return 'bg-[#111111] border-zinc-800 text-gray-200';
-      case AppTheme.MIDNIGHT: return 'bg-black border-zinc-900 text-gray-300';
-      case AppTheme.BLUE_NIGHT: return 'bg-[#1E293B] border-[#334155] text-[#E2E8F0]';
-      case AppTheme.FOREST: return 'bg-[#14532D] border-[#166534] text-[#DCFCE7]';
-      default: return 'bg-white border-gray-200 text-gray-800';
-    }
-  };
-
+  const colors = 'bg-[var(--lumina-bg-secondary)] border-[var(--lumina-border)] text-[var(--lumina-text)]';
   const isLight = theme === AppTheme.LIGHT || theme === AppTheme.SEPIA || theme === AppTheme.SOLARIZED;
-  const colors = getThemeColors();
   const inputBg = isLight ? 'bg-black/5' : 'bg-white/10';
 
   return (
