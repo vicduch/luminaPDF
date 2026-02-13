@@ -113,17 +113,27 @@ export const openDrivePicker = (): Promise<DriveFile | null> => {
 
         function createPicker(accessToken: string) {
             console.log("Construction du Picker Google...");
-            const view = new (window as any).google.picker.DocsView((window as any).google.picker.ViewId.PDFS);
-            view.setMimeTypes('application/pdf');
+
+            // Vue pour les PDFs (Mode Liste)
+            const pdfView = new (window as any).google.picker.DocsView((window as any).google.picker.ViewId.PDFS);
+            pdfView.setMimeTypes('application/pdf');
+            pdfView.setMode((window as any).google.picker.DocsViewMode.LIST);
+
+            // Vue pour les fichiers récents
+            const recentView = new (window as any).google.picker.DocsView((window as any).google.picker.ViewId.RECENTLY_PICKED);
+            recentView.setMimeTypes('application/pdf');
 
             const picker = new (window as any).google.picker.PickerBuilder()
                 .enableFeature((window as any).google.picker.Feature.NAV_HIDDEN)
                 .enableFeature((window as any).google.picker.Feature.MULTISELECT_ENABLED)
+                .enableFeature((window as any).google.picker.Feature.SUPPORT_DRIVES)
                 .setAppId(APP_ID)
                 .setOAuthToken(accessToken)
-                .addView(view)
+                .addView(pdfView)
+                .addView(recentView)
                 .addView(new (window as any).google.picker.DocsUploadView())
                 .setDeveloperKey(API_KEY)
+                .setTitle("LuminaPDF - Google Drive")
                 .setCallback((data: any) => {
                     if (data[(window as any).google.picker.Response.ACTION] === (window as any).google.picker.Action.PICKED) {
                         const doc = data[(window as any).google.picker.Response.DOCUMENTS][0];

@@ -73,14 +73,10 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme }) => {
                 }));
             }
 
-            // 3. Merge (Simple overwrite by ID or concat? For now, concat distinct)
-            // Ideally we deduplicate by ID.
+            // 3. Merge: only show cloud files that also exist locally (we can't open cloud-only entries)
+            // Cloud entries without a local blob would cause "file not available" errors
             const allFiles = [...local];
-            cloudFiles.forEach(cf => {
-                if (!allFiles.find(f => f.id === cf.id)) {
-                    allFiles.push(cf);
-                }
-            });
+            // Cloud files are synced for metadata only; skip any that aren't stored locally
 
             // Sort by date
             allFiles.sort((a, b) => b.lastVisited - a.lastVisited);
@@ -170,8 +166,15 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme }) => {
     const handleDelete = async (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
         try {
-            await deleteRecentFile(id); // Local delete
-            // Cloud delete? Not implemented in UI yet
+            // 1. Suppression locale (IndexedDB)
+            await deleteRecentFile(id);
+
+            // 2. Suppression Cloud (Supabase) si connecté
+            if (user) {
+                const { deleteCloudRecentFile } = await import('../services/supabase');
+                await deleteCloudRecentFile(id);
+            }
+
             setFiles(prev => prev.filter(f => f.id !== id));
         } catch (error) {
             console.error("Failed to delete file", error);

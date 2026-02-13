@@ -99,3 +99,17 @@ export const upsertRecentFile = async (file: Omit<RecentFileDB, 'user_id'>) => {
     if (error) console.error('Error saving recent file:', error);
 };
 
+export const deleteCloudRecentFile = async (fileId: string) => {
+    if (!supabase) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { error } = await supabase
+        .from('recent_files')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('name', fileId); // We match by name since that's the local ID
+
+    if (error) console.error('Error deleting cloud recent file:', error);
+};
+
