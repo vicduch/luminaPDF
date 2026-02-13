@@ -219,24 +219,6 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme }) => {
                 </h2>
 
                 <div className="flex items-center gap-3">
-                    <button
-                        onClick={handleDriveOpen}
-                        disabled={isDriving}
-                        className={`
-                            flex items-center gap-2 px-4 py-2 rounded-lg transition-all
-                            bg-white dark:bg-zinc-800 shadow-sm border border-gray-200 dark:border-zinc-700
-                            hover:bg-gray-50 dark:hover:bg-zinc-700/80 ${textPrimary}
-                            ${isDriving ? 'opacity-50 cursor-not-allowed' : ''}
-                        `}
-                    >
-                        {isDriving ? (
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
-                        ) : (
-                            <HardDrive size={18} />
-                        )}
-                        Google Drive
-                    </button>
-
                     {isCloudEnabled && (
                         !user ? (
                             <button
@@ -247,21 +229,41 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme }) => {
                                 Connexion
                             </button>
                         ) : (
-                            <div className="flex items-center gap-3 bg-white dark:bg-zinc-800 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-zinc-700 shadow-sm">
-                                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
-                                    {user.email?.charAt(0).toUpperCase()}
-                                </div>
-                                <div className="hidden sm:block text-sm">
-                                    <p className={textPrimary}>{user.email}</p>
-                                </div>
+                            <>
                                 <button
-                                    onClick={handleLogout}
-                                    className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-700 text-gray-500 transition-colors"
-                                    title="Déconnexion"
+                                    onClick={handleDriveOpen}
+                                    disabled={isDriving}
+                                    className={`
+                                        flex items-center gap-2 px-4 py-2 rounded-lg transition-all
+                                        bg-white dark:bg-zinc-800 shadow-sm border border-gray-200 dark:border-zinc-700
+                                        hover:bg-gray-50 dark:hover:bg-zinc-700/80 ${textPrimary}
+                                        ${isDriving ? 'opacity-50 cursor-not-allowed' : ''}
+                                    `}
                                 >
-                                    <LogOut size={16} />
+                                    {isDriving ? (
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                                    ) : (
+                                        <HardDrive size={18} />
+                                    )}
+                                    Google Drive
                                 </button>
-                            </div>
+
+                                <div className="flex items-center gap-3 bg-white dark:bg-zinc-800 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-zinc-700 shadow-sm">
+                                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
+                                        {user.email?.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div className="hidden sm:block text-sm">
+                                        <p className={textPrimary}>{user.email}</p>
+                                    </div>
+                                    <button
+                                        onClick={handleLogout}
+                                        className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-700 text-gray-500 transition-colors"
+                                        title="Déconnexion"
+                                    >
+                                        <LogOut size={16} />
+                                    </button>
+                                </div>
+                            </>
                         )
                     )}
                 </div>
