@@ -15,6 +15,7 @@ export default defineConfig(({ mode }) => {
       react(),
       VitePWA({
         registerType: 'autoUpdate',
+        includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png'],
         manifest: {
           name: 'LuminaPDF',
           short_name: 'LuminaPDF',
@@ -22,6 +23,7 @@ export default defineConfig(({ mode }) => {
           theme_color: '#1a1a2e',
           background_color: '#1a1a2e',
           display: 'standalone',
+          orientation: 'any',
           icons: [
             {
               src: 'icon-192.png',
