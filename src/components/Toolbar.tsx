@@ -318,10 +318,10 @@ const Toolbar: React.FC<ToolbarProps> = ({
         {/* AI Trigger */}
         <button
           onClick={toggleAiPanel}
-          className="btn-action hover:text-violet-500 group"
+          className="btn-action hover:text-[var(--lumina-accent)] group"
           title="Assistant IA"
         >
-          <Sparkles size={18} className="group-hover:animate-soft-pulse" />
+          <Sparkles size={18} className="group-hover:animate-soft-pulse text-[var(--lumina-accent)]" />
         </button>
 
         <div className="h-4 w-px bg-current opacity-10 mx-1 hidden sm:block"></div>

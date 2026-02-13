@@ -143,7 +143,7 @@ const AiPanel: React.FC<AiPanelProps> = ({ isOpen, onClose, currentPageText, pdf
           <div className="flex items-center justify-between">
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
-                <Sparkles className="text-violet-500" size={18} />
+                <Sparkles className="text-[var(--lumina-accent)]" size={18} />
                 <span className="font-bold tracking-tight text-lg">Assistant IA</span>
               </div>
               <span className="text-[10px] uppercase tracking-widest opacity-40 font-bold mt-0.5">Propulsé par Gemini 3.0</span>
@@ -196,14 +196,14 @@ const AiPanel: React.FC<AiPanelProps> = ({ isOpen, onClose, currentPageText, pdf
             <div key={idx} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''} fly-enter-active`}>
               <div className={`
                 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0
-                ${msg.role === 'model' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300' : (isLight ? 'bg-gray-200 text-gray-600' : 'bg-gray-700 text-gray-300')}
+                ${msg.role === 'model' ? 'bg-[var(--lumina-accent-muted)] text-[var(--lumina-accent)]' : (isLight ? 'bg-gray-200 text-gray-600' : 'bg-gray-700 text-gray-300')}
               `}>
                 {msg.role === 'model' ? <Bot size={16} /> : <User size={16} />}
               </div>
               <div className={`
                 max-w-[85%] rounded-2xl px-4 py-2 text-sm leading-relaxed whitespace-pre-line shadow-sm
                 ${msg.role === 'user'
-                  ? 'bg-blue-600 text-white rounded-tr-none'
+                  ? 'bg-[var(--lumina-accent)] text-white rounded-tr-none'
                   : `${isLight ? 'bg-black/5 text-gray-800' : 'bg-white/10 text-gray-200'} rounded-tl-none`
                 }
               `}>
@@ -213,7 +213,7 @@ const AiPanel: React.FC<AiPanelProps> = ({ isOpen, onClose, currentPageText, pdf
           ))}
           {loading && (
             <div className="flex gap-3 fly-enter-active">
-              <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-300 flex items-center justify-center animate-pulse">
+              <div className="w-8 h-8 rounded-full bg-[var(--lumina-accent-muted)] text-[var(--lumina-accent)] flex items-center justify-center animate-pulse">
                 <Sparkles size={16} />
               </div>
               <div className={`${isLight ? 'bg-black/5' : 'bg-white/10'} rounded-2xl rounded-tl-none px-4 py-3 flex items-center gap-2`}>
@@ -252,9 +252,10 @@ const AiPanel: React.FC<AiPanelProps> = ({ isOpen, onClose, currentPageText, pdf
                 absolute right-2 p-2 rounded-lg transition-all duration-300
                 ${!input.trim() || loading
                   ? 'text-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700 shadow-md transform hover:scale-105'
+                  : 'bg-[var(--lumina-accent)] text-white hover:bg-[var(--lumina-accent-hover)] shadow-md transform hover:scale-105'
                 }
               `}
+              style={!input.trim() || loading ? {} : { boxShadow: '0 4px 6px -1px var(--lumina-shadow)' }}
             >
               <Send size={16} />
             </button>

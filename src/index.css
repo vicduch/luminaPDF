@@ -88,7 +88,9 @@
 }
 
 .btn-action.active {
-  @apply bg-violet-500/10 text-violet-500 ring-1 ring-violet-500/20 shadow-sm;
+  background-color: var(--lumina-accent-muted);
+  color: var(--lumina-accent);
+  box-shadow: 0 0 0 1px var(--lumina-accent-muted);
 }
 
 /* Micro-animations */

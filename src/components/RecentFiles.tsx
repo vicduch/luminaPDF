@@ -189,7 +189,7 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme }) => {
             <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6 border-b border-black/5 dark:border-white/5 pb-8">
                 <div className="flex flex-col">
                     <h2 className={`text-3xl font-bold tracking-tight flex items-center gap-3 ${textPrimary}`}>
-                        <Clock size={28} className="text-violet-500 opacity-80" />
+                        <Clock size={28} className="text-[var(--lumina-accent)] opacity-80" />
                         Tableau de bord
                     </h2>
                     <p className={`text-sm mt-1 font-medium opacity-50 ${textSecondary}`}>
@@ -202,7 +202,8 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme }) => {
                         !user ? (
                             <button
                                 onClick={handleLogin}
-                                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white shadow-lg shadow-violet-500/20 transition-all font-semibold text-sm active:scale-95"
+                                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--lumina-accent)] hover:bg-[var(--lumina-accent-hover)] text-white shadow-lg transition-all font-semibold text-sm active:scale-95"
+                                style={{ boxShadow: '0 10px 15px -3px var(--lumina-shadow)' }}
                             >
                                 <LogIn size={18} />
                                 Connexion Cloud
@@ -228,7 +229,7 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme }) => {
                                 </button>
 
                                 <div className="flex items-center gap-3 bg-white dark:bg-zinc-800 px-4 py-2 rounded-xl border border-black/5 dark:border-white/5 shadow-sm">
-                                    <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-xs font-bold shadow-sm">
+                                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shadow-sm" style={{ background: 'var(--lumina-accent)' }}>
                                         {user.email?.charAt(0).toUpperCase()}
                                     </div>
                                     <div className="hidden sm:block text-xs">
@@ -252,12 +253,12 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme }) => {
             {/* Empty State */}
             {files.length === 0 ? (
                 <div className="flex flex-col items-center justify-center p-20 mt-4 border-2 border-dashed border-black/5 dark:border-white/5 rounded-[32px] bg-black/5 dark:bg-white/5">
-                    <Cloud size={64} className="mb-6 text-violet-500 opacity-20" />
+                    <Cloud size={64} className="mb-6 text-[var(--lumina-accent)] opacity-20" />
                     <h3 className={`text-2xl font-bold tracking-tight ${textPrimary}`}>Bibliothèque vide</h3>
                     <p className={`mt-2 font-medium opacity-50 text-center max-w-sm ${textSecondary}`}>
                         Glissez-déposez un PDF ici ou utilisez le bouton ci-dessous pour démarrer.
                     </p>
-                    <label className="mt-8 cursor-pointer bg-violet-600 hover:bg-violet-700 text-white px-8 py-4 rounded-2xl shadow-xl shadow-violet-500/20 transition-all hover:scale-105 active:scale-95 font-bold flex items-center gap-3">
+                    <label className="mt-8 cursor-pointer bg-[var(--lumina-accent)] hover:bg-[var(--lumina-accent-hover)] text-white px-8 py-4 rounded-2xl shadow-xl transition-all hover:scale-105 active:scale-95 font-bold flex items-center gap-3" style={{ boxShadow: '0 10px 15px -3px var(--lumina-shadow)' }}>
                         <HardDrive size={22} />
                         Parcourir mes fichiers
                         <input type="file" accept="application/pdf" onChange={(e) => {
@@ -300,9 +301,9 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme }) => {
                                     ) : (
                                         <div className={`
                                             w-full h-full flex items-center justify-center
-                                            bg-gradient-to-br from-violet-500/20 to-fuchsia-500/10 dark:from-violet-500/30 dark:to-fuchsia-500/20
+                                            bg-gradient-to-br from-[var(--lumina-accent)] to-[var(--lumina-accent-hover)] opacity-10
                                         `}>
-                                            <FileText size={48} className="text-violet-500 opacity-40 group-hover:scale-110 transition-transform duration-500" />
+                                            <FileText size={48} className="text-[var(--lumina-accent)] opacity-40 group-hover:scale-110 transition-transform duration-500" />
                                         </div>
                                     )}
 
@@ -326,7 +327,7 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme }) => {
                                     {/* Annotations badge */}
                                     {file.annotations && file.annotations.length > 0 && (
                                         <div className="mt-2 flex justify-center">
-                                            <span className="text-[9px] px-2 py-0.5 rounded-lg bg-amber-500 text-white font-bold shadow-sm shadow-amber-500/30 animate-pulse">
+                                            <span className="text-[9px] px-2 py-0.5 rounded-lg bg-[var(--lumina-accent)] text-white font-bold shadow-sm animate-pulse" style={{ boxShadow: '0 2px 4px var(--lumina-shadow)' }}>
                                                 {file.annotations.length} NOTE{file.annotations.length > 1 ? 'S' : ''}
                                             </span>
                                         </div>

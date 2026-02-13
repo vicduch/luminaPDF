@@ -16,6 +16,9 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: 'autoUpdate',
         includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png'],
+        workbox: {
+          globPatterns: ['**/*.{js,css,html,ico,png,svg}']
+        },
         manifest: {
           name: 'LuminaPDF',
           short_name: 'LuminaPDF',
