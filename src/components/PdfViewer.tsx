@@ -872,9 +872,16 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              minWidth: 'fit-content',
-              minHeight: 'fit-content',
-              padding: isMobileOS ? '20px' : '100vh 100vw'
+              ...(isMobileOS ? {
+                minWidth: '100%',
+                minHeight: '100%',
+                padding: '20px',
+                boxSizing: 'border-box' as const
+              } : {
+                minWidth: 'fit-content',
+                minHeight: 'fit-content',
+                padding: '100vh 100vw'
+              })
             }}
           >
             <div id="pdf-scale-layer" className="flex-none flex flex-col items-center gap-8">

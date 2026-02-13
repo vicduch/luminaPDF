@@ -264,7 +264,19 @@ function App() {
             // Only 16px margin (8px top + 8px bottom) for a tight, immersive fit
             const targetScale = (containerDimensions.height - 16) / pageDimensions.height;
             setScale(targetScale);
-            setFitToScreenTrigger(prev => !prev);
+
+            // Center the document after the layout updates from the scale change
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                const container = pdfViewerRef.current?.containerRef?.current;
+                const content = pdfViewerRef.current?.contentRef?.current;
+                if (container && content) {
+                    container.scrollTo({
+                        left: (content.scrollWidth / 2) - (container.clientWidth / 2),
+                        top: (content.scrollHeight / 2) - (container.clientHeight / 2),
+                        behavior: 'instant'
+                    });
+                }
+            }));
         }
     }, [containerDimensions.height, pageDimensions.height]);
 
