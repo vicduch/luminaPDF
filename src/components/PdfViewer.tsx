@@ -61,6 +61,7 @@ interface LazyPageProps {
   onDeleteAnnotation?: (id: string) => void;
   onLoadSuccess?: (page: any) => void;
   onVisible?: (pageNumber: number) => void;
+  forceRender?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -107,8 +108,8 @@ const ThemeFilterDefs: React.FC<{ theme?: AppTheme, variant?: ThemeVariant }> = 
   );
 };
 
-const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedScale, pageDimensions, containerRef, theme, themeVariant, annotations = [], isAnnotationMode = false, annotationColor = '#facc15', onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation, onLoadSuccess, onVisible }) => {
-  const [isRendered, setIsRendered] = React.useState(false);
+const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedScale, pageDimensions, containerRef, theme, themeVariant, annotations = [], isAnnotationMode = false, annotationColor = '#facc15', onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation, onLoadSuccess, onVisible, forceRender = false }) => {
+  const [isRendered, setIsRendered] = React.useState(forceRender);
   const elementRef = useRef<HTMLDivElement>(null);
   const canvasWrapperRef = useRef<HTMLDivElement>(null);
 
@@ -814,9 +815,9 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     const currentPageDims = allPagesDimensions.get(pageNumber);
     if (!currentPageDims) return;
 
-    const margin = 40; // 20px each side
-    const fitWidth = (container.clientWidth - margin) / currentPageDims.width;
-    const fitHeight = (container.clientHeight - margin) / currentPageDims.height;
+    // No margin: page fills container exactly (no horizontal slack = no swipe shift)
+    const fitWidth = container.clientWidth / currentPageDims.width;
+    const fitHeight = container.clientHeight / currentPageDims.height;
     const fitScale = Math.min(fitWidth, fitHeight);
 
     // Only auto-fit if there's a meaningful difference (>2%)
@@ -834,9 +835,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       className="h-full w-full overflow-auto relative"
       style={{
         backgroundColor: 'var(--lumina-app-bg, #e4e4e7)',
-        display: isMobileOS ? 'flex' : 'block',
-        justifyContent: isMobileOS ? 'center' : 'initial',
-        alignItems: isMobileOS ? 'center' : 'initial'
+        touchAction: isMobileOS ? 'pan-y pinch-zoom' : 'auto'
       }}
     >
       {/* SVG Filter Definitions - Rendered once at viewport level */}
@@ -865,8 +864,8 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
             transform: `scale(${scale})`,
             transformOrigin: 'center center',
             willChange: 'transform',
-            display: 'inline-block',
-            verticalAlign: 'top'
+            display: isMobileOS ? 'block' : 'inline-block',
+            ...(isMobileOS ? { margin: 'auto' } : { verticalAlign: 'top' as const })
           }}
         >
           <div
@@ -927,6 +926,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
                   onUpdateAnnotation={onUpdateAnnotation}
                   onDeleteAnnotation={onDeleteAnnotation}
                   onVisible={handlePageVisible}
+                  forceRender={true}
                 />
               )}
             </div>
