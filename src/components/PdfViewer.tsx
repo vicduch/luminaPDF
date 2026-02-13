@@ -324,6 +324,12 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
   // Sprint 2.8: Hybrid Zoom - Debounce heavy CPU rendering
   const debouncedScale = useDebounce(scale, 150);
 
+  // Touch device detection for adaptive workspace
+  const isTouchDevice = useMemo(() =>
+    typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0),
+    []
+  );
+
   // Sprint Perf-A: Pre-filter annotations per page to avoid O(n) re-renders
   const emptyAnnotations: Annotation[] = useMemo(() => [], []);
   const annotationsByPage = useMemo(() => {
@@ -775,6 +781,49 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     };
   }, [scrollMode, pageNumber, numPages, setPageNumber]);
 
+  // Auto Page-Fit: On tablet in paginated mode, fit page to viewport width
+  const userHasZoomedRef = useRef(false);
+  const lastAutoFitPageRef = useRef<number | null>(null);
+
+  // Track user-initiated zoom changes to avoid overriding their preference
+  useEffect(() => {
+    if (!isTouchDevice) return;
+    // After auto-fit sets the scale, ignore that change; only flag manual zooms
+    if (lastAutoFitPageRef.current === pageNumber) {
+      lastAutoFitPageRef.current = null;
+      return;
+    }
+    userHasZoomedRef.current = true;
+  }, [scale]);
+
+  // Reset user zoom flag on page change (re-enable auto-fit for new page)
+  useEffect(() => {
+    userHasZoomedRef.current = false;
+  }, [pageNumber]);
+
+  useEffect(() => {
+    if (!isTouchDevice) return;
+    if (scrollMode !== ScrollMode.PAGED) return;
+    if (userHasZoomedRef.current) return;
+
+    const container = containerRef.current;
+    if (!container) return;
+
+    const currentPageDims = allPagesDimensions.get(pageNumber);
+    if (!currentPageDims) return;
+
+    const containerWidth = container.clientWidth;
+    const horizontalPadding = 40; // 20px each side
+    const availableWidth = containerWidth - horizontalPadding;
+
+    const fitScale = availableWidth / currentPageDims.width;
+    // Only auto-fit if there's a meaningful difference (>2%)
+    if (Math.abs(fitScale - scale) > 0.02) {
+      lastAutoFitPageRef.current = pageNumber;
+      onScaleChange?.(fitScale);
+    }
+  }, [isTouchDevice, scrollMode, pageNumber, allPagesDimensions, onScaleChange]);
+
   const isContinuous = scrollMode === ScrollMode.CONTINUOUS;
 
   return (
@@ -823,7 +872,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
               justifyContent: 'center',
               minWidth: 'fit-content',
               minHeight: 'fit-content',
-              padding: '100vh 100vw'
+              padding: isTouchDevice ? '20px' : '100vh 100vw'
             }}
           >
             <div id="pdf-scale-layer" className="flex-none flex flex-col items-center gap-8">
