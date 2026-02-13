@@ -6,7 +6,8 @@ import {
     getUser,
     getRecentFiles as getCloudRecents,
     upsertRecentFile,
-    isSupabaseconfigured
+    isSupabaseconfigured,
+    onAuthStateChange
 } from '../services/supabase';
 import { openDrivePicker, downloadDriveFile } from '../services/drive';
 import { FileText, Clock, Trash2, HardDrive, LogIn, LogOut, Cloud, User } from './Icons';
@@ -31,10 +32,17 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme }) => {
 
     useEffect(() => {
         setIsCloudEnabled(isSupabaseconfigured());
+
+        // Initial check
         checkUser();
         loadFiles();
 
-        // Listen for auth state changes if needed, but for now simple check on mount
+        // Listen for auth state changes
+        const unsubscribe = onAuthStateChange((u) => {
+            setUser(u);
+        });
+
+        return () => unsubscribe();
     }, []);
 
     const checkUser = async () => {
@@ -105,32 +113,24 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme }) => {
         setFiles([]); // Clear mix, reload local only handled by effect
     };
 
+    const [isDriving, setIsDriving] = useState(false);
+
     const handleDriveOpen = async () => {
-        // Si l'utilisateur n'est pas connecté, rediriger vers la connexion Google
-        if (!user) {
-            try {
-                await signInWithGoogle();
-                // La page va se recharger après le login, donc on s'arrête ici
-                return;
-            } catch (error) {
-                console.error("Erreur de connexion:", error);
-                alert("Veuillez d'abord vous connecter pour accéder à Google Drive.");
-                return;
-            }
-        }
+        if (isDriving) return;
 
         try {
+            setIsDriving(true);
             console.log("Tentative d'ouverture de Google Drive...");
             const driveFile = await openDrivePicker();
 
             if (driveFile) {
                 console.log("Fichier sélectionné:", driveFile.name);
-                // Download content
                 const blob = await downloadDriveFile(driveFile);
                 const file = new File([blob], driveFile.name, { type: driveFile.mimeType });
 
                 onFileSelect(file);
 
+                // We only sync to cloud if the user is actually logged in
                 if (user) {
                     await upsertRecentFile({
                         name: driveFile.name,
@@ -159,6 +159,8 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme }) => {
             }
 
             alert(message);
+        } finally {
+            setIsDriving(false);
         }
     };
 
@@ -219,13 +221,19 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme }) => {
                 <div className="flex items-center gap-3">
                     <button
                         onClick={handleDriveOpen}
+                        disabled={isDriving}
                         className={`
                             flex items-center gap-2 px-4 py-2 rounded-lg transition-all
                             bg-white dark:bg-zinc-800 shadow-sm border border-gray-200 dark:border-zinc-700
                             hover:bg-gray-50 dark:hover:bg-zinc-700/80 ${textPrimary}
+                            ${isDriving ? 'opacity-50 cursor-not-allowed' : ''}
                         `}
                     >
-                        <HardDrive size={18} />
+                        {isDriving ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                        ) : (
+                            <HardDrive size={18} />
+                        )}
                         Google Drive
                     </button>
 

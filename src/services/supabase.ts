@@ -49,6 +49,14 @@ export const getUser = async () => {
     return user;
 };
 
+export const onAuthStateChange = (callback: (user: any) => void) => {
+    if (!supabase) return () => { };
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        callback(session?.user ?? null);
+    });
+    return () => subscription.unsubscribe();
+};
+
 // --- Database (Recent Files) ---
 export const getRecentFiles = async () => {
     if (!supabase) return [];
