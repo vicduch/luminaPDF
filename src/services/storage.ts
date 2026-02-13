@@ -206,7 +206,15 @@ export const getReadingPosition = async (
  */
 export const generateThumbnail = async (file: File, maxWidth = 200): Promise<string | undefined> => {
     try {
-        const { getDocument } = await import('pdfjs-dist');
+        const pdfjsLib = await import('pdfjs-dist');
+        const { getDocument, GlobalWorkerOptions } = pdfjsLib;
+
+        // Ensure the worker is configured
+        if (!GlobalWorkerOptions.workerSrc) {
+            const pdfjsVersion = pdfjsLib.version;
+            GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsVersion}/pdf.worker.min.mjs`;
+        }
+
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await getDocument({ data: arrayBuffer }).promise;
         const page = await pdf.getPage(1);

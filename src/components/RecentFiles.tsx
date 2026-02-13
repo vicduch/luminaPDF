@@ -128,21 +128,8 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme }) => {
                 const blob = await downloadDriveFile(driveFile);
                 const file = new File([blob], driveFile.name, { type: driveFile.mimeType });
 
+                // App.tsx handleOpenFile will save it to IndexedDB automatically
                 onFileSelect(file);
-
-                // We only sync to cloud if the user is actually logged in
-                if (user) {
-                    await upsertRecentFile({
-                        name: driveFile.name,
-                        source: 'drive',
-                        last_viewed: new Date().toISOString(),
-                        metadata: {
-                            size: blob.size,
-                            type: driveFile.mimeType,
-                            driveId: driveFile.id
-                        }
-                    });
-                }
             }
         } catch (error: any) {
             console.error("Détails de l'erreur Drive:", error);
@@ -166,30 +153,14 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme }) => {
 
     const handleOpen = async (fileMeta: RecentFileMetadata) => {
         try {
-            // Check source
-            if ((fileMeta as any).source === 'drive') {
-                // It's a drive file reference. We need to fetch it.
-                // We need the Drive ID.
-                // currently we don't have it easily without storing it.
-                // Assuming we stored it in metadata.
-                // For MVP, if we can't find blob locally, maybe tell user to re-open from Drive?
-                // Or try to download if we had the ID.
-                alert("Pour réouvrir un fichier Drive, veuillez utiliser le bouton 'Google Drive'. (Persistance Drive WIP)");
-                return;
-            }
-
-            // Default: Try Local IndexedDB
+            // Always try local IndexedDB first (Drive files are also saved locally)
             const blob = await getFileBlob(fileMeta.id);
             if (blob) {
                 const file = new File([blob], fileMeta.name, { type: blob.type || fileMeta.type });
                 onFileSelect(file);
             } else {
-                console.error("File blob not found locally");
-                // If it was supposed to be local, it's missing.
-                // If it was cloud, maybe we need to fetch from URL?
-                if ((fileMeta as any).url) {
-                    // Fetch from URL
-                }
+                console.warn("Blob introuvable localement pour:", fileMeta.name);
+                alert("Ce fichier n'est plus disponible localement. Veuillez le réouvrir depuis Google Drive ou votre appareil.");
             }
         } catch (e) {
             console.error("Failed to open file", e);
