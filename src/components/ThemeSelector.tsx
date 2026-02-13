@@ -47,7 +47,7 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({ currentTheme, setTheme })
         onClick={() => setIsOpen(!isOpen)}
         className={`
             p-2 rounded-md transition-colors flex items-center gap-2 text-sm font-medium
-            ${isOpen ? 'bg-black/10 dark:bg-white/10' : 'hover:bg-black/5 dark:hover:bg-white/10'}
+            ${isOpen ? 'bg-[var(--lumina-bg-tertiary)]' : 'hover:bg-[var(--lumina-bg-tertiary)]'}
         `}
         title="Changer le thème"
       >
@@ -72,16 +72,16 @@ const ThemeSelector: React.FC<ThemeSelectorProps> = ({ currentTheme, setTheme })
                 className={`
                     w-full text-left px-4 py-2.5 text-sm flex items-center gap-3 transition-colors
                     ${isSelected
-                    ? 'bg-blue-500/10 font-medium'
-                    : 'hover:bg-black/5 dark:hover:bg-white/10'
+                    ? 'bg-[var(--lumina-accent-muted)] font-medium'
+                    : 'hover:bg-[var(--lumina-bg-tertiary)] opacity-80 hover:opacity-100'
                   }
                 `}
               >
-                <span className={`${isSelected ? 'text-blue-500' : 'opacity-70'}`}>
+                <span className={`${isSelected ? 'text-[var(--lumina-accent)]' : 'opacity-70'}`}>
                   {theme.icon}
                 </span>
                 <span className="flex-1">{theme.label}</span>
-                {isSelected && <Check size={14} className="text-blue-500" />}
+                {isSelected && <Check size={14} className="text-[var(--lumina-accent)]" />}
               </button>
             );
           })}

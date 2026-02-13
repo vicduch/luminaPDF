@@ -100,35 +100,11 @@ const Toolbar: React.FC<ToolbarProps> = ({
     { label: 'Violet', value: '#c084fc' },
   ];
 
-  const getMenuTheme = () => {
-    switch (theme) {
-      case AppTheme.LIGHT: return 'bg-white/80 border-gray-200';
-      case AppTheme.SEPIA: return 'bg-[#FDF6E3]/90 border-[#E8D5B5]';
-      case AppTheme.SOLARIZED: return 'bg-[#FDF6E3]/90 border-[#D9CDB4]';
-      case AppTheme.DARK: return 'bg-[#111111]/90 border-zinc-800';
-      case AppTheme.MIDNIGHT: return 'bg-[#1E293B]/90 border-[#334155]';
-      case AppTheme.OLED: return 'bg-black/90 border-zinc-900';
-      case AppTheme.FOREST: return 'bg-[#14532D]/90 border-[#166534]';
-      case AppTheme.EINK: return 'bg-[#d4d4d4]/90 border-[#a3a3a3]';
-      default: return 'bg-white/90 border-gray-200';
-    }
-  };
-
-  const menuThemeClass = getMenuTheme();
+  const menuThemeClass = 'bg-[var(--lumina-bg-secondary)]/95 border-[var(--lumina-border)] shadow-xl backdrop-blur-md';
 
   // Get toolbar background/text colors based on theme
   const getToolbarClasses = () => {
-    switch (theme) {
-      case AppTheme.LIGHT: return 'bg-[#F8FAFC]/70 border-gray-200/50 text-slate-700';
-      case AppTheme.SEPIA: return 'bg-[#FDF6E3]/70 border-[#E8D5B5]/50 text-[#5C4827]';
-      case AppTheme.SOLARIZED: return 'bg-[#FDF6E3]/70 border-[#D9CDB4]/50 text-[#657B83]';
-      case AppTheme.DARK: return 'bg-[#0A0A0A]/70 border-zinc-800/50 text-gray-200';
-      case AppTheme.MIDNIGHT: return 'bg-[#0F172A]/70 border-[#334155]/50 text-[#E2E8F0]';
-      case AppTheme.OLED: return 'bg-black/70 border-zinc-900/50 text-gray-300';
-      case AppTheme.FOREST: return 'bg-[#052E16]/70 border-[#166534]/50 text-[#DCFCE7]';
-      case AppTheme.EINK: return 'bg-[#bebebe]/70 border-[#a3a3a3]/50 text-[#111111]';
-      default: return 'bg-white/70 border-gray-200/50 text-slate-700';
-    }
+    return 'bg-[var(--lumina-bg-secondary)]/80 border-[var(--lumina-border)] text-[var(--lumina-text)]';
   };
 
   return (

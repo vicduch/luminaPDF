@@ -51,32 +51,32 @@ export const THEME_PALETTES: Record<string, VariantPalettes> = {
     // ═══════════════════════════════════════════════════════════════════════
     light: {
         light: {
-            appBg: '#e4e4e7',           // Zinc-200
-            paperBg: '#ffffff',         // White
-            bgSecondary: '#f4f4f5',     // Zinc-100 (Sidebar/Cards)
-            bgTertiary: '#ffffff',      // Zinc-50 (Hover)
+            appBg: '#f1f5f9',           // Slate-100 (Clean Environment)
+            paperBg: '#ffffff',         // White (Pure Paper)
+            bgSecondary: '#ffffff',     // White (Elevated UI)
+            bgTertiary: '#f8fafc',      // Slate-50 (Hover)
             accent: '#3B82F6', accentHover: '#2563EB', accentMuted: 'rgba(59, 130, 246, 0.1)',
-            text: '#18181b',            // Zinc-950
-            textMuted: '#71717a',       // Zinc-500
+            text: '#0f172a',            // Slate-900 (High contrast)
+            textMuted: '#64748b',       // Slate-500
             textInverse: '#ffffff',
-            border: '#d4d4d8',          // Zinc-300
-            borderHover: '#a1a1aa',     // Zinc-400
+            border: '#e2e8f0',          // Slate-200
+            borderHover: '#cbd5e1',     // Slate-300
             success: '#059669', warning: '#D97706', error: '#DC2626',
-            shadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.1)', // shadow-2xl ring-1
+            shadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05)',
         },
         dark: {
-            appBg: '#000000',           // Pure Black
-            paperBg: '#18181b',         // Zinc-950
-            bgSecondary: '#09090b',     // Zinc-950+ (Sidebar)
-            bgTertiary: '#27272a',      // Zinc-800
+            appBg: '#020617',           // Deep Slate (Uniform with Midnight)
+            paperBg: '#1e1e22',         // Matches RENDER_PALETTE.light.dark exactly [30, 30, 34]
+            bgSecondary: '#0f172a',     // Slate-900
+            bgTertiary: '#1e293b',      // Slate-800
             accent: '#60A5FA', accentHover: '#3B82F6', accentMuted: 'rgba(96, 165, 250, 0.15)',
-            text: '#e4e4e7',            // Zinc-200
-            textMuted: '#a1a1aa',       // Zinc-400
+            text: '#f1f5f9',            // Slate-100
+            textMuted: '#94a3b8',       // Slate-400
             textInverse: '#000000',
-            border: '#27272a',          // Zinc-800
-            borderHover: '#3f3f46',     // Zinc-700
+            border: '#1e293b',          // Slate-800
+            borderHover: '#334155',     // Slate-700
             success: '#10B981', warning: '#F59E0B', error: '#EF4444',
-            shadow: '0 0 40px rgba(255, 255, 255, 0.05)', // Glowy shadow
+            shadow: '0 0 40px rgba(0, 0, 0, 0.4)',
         },
     },
 
@@ -105,17 +105,17 @@ export const THEME_PALETTES: Record<string, VariantPalettes> = {
         },
         dark: {
             appBg: '#051a10',           // Jungle Deep
-            paperBg: '#0A1F12',         // Abyss
-            bgSecondary: '#022c22',     // Teal-950
-            bgTertiary: '#064e3b',      // Teal-900
+            paperBg: '#122a1b',         // Matches RENDER_PALETTE.forest.dark exactly [18, 42, 27]
+            bgSecondary: '#0a2216',
+            bgTertiary: '#143825',
             accent: '#22C55E', accentHover: '#16A34A', accentMuted: 'rgba(34, 197, 94, 0.15)',
             text: '#CBEAD6',            // Mint Pale
             textMuted: '#86EFAC',       // Mint
-            textInverse: '#0A1F12',
-            border: '#14532D',          // Green-900
-            borderHover: '#166534',
+            textInverse: '#051a10',
+            border: '#143825',
+            borderHover: '#1a4d33',
             success: '#4ADE80', warning: '#FDE047', error: '#FCA5A5',
-            shadow: '0 0 30px rgba(0, 0, 0, 0.6)',
+            shadow: '0 0 30px rgba(0, 0, 0, 0.5)',
         },
     },
 
@@ -452,7 +452,9 @@ export function applyTheme(theme: AppTheme, variant: ThemeVariant = 'light'): vo
     root.style.setProperty('--lumina-text', palette.text);
     root.style.setProperty('--lumina-text-muted', palette.textMuted);
     root.style.setProperty('--lumina-border', palette.border);
+    root.style.setProperty('--lumina-border-hover', palette.borderHover);
     root.style.setProperty('--lumina-shadow', palette.shadow);
+    root.style.setProperty('--lumina-text-inverse', palette.textInverse);
 
     // Toggle dark mode class for Tailwind
     if (isDarkVariant(variant)) {

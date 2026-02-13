@@ -175,7 +175,7 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
       ([entry]) => {
         setIsRendered(entry.isIntersecting);
       },
-      { root, rootMargin: '1500px' }
+      { root, rootMargin: '2000px' } // Increased for smoother scrolling
     );
     renderObserver.observe(el);
 
@@ -227,10 +227,12 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
         height,
         filter: filterStyle,
         position: 'relative',
-        backgroundColor: paperBg,
-        boxShadow: `0 0 0 1px ${paperBg}` // Tiny overlap to hide subpixel gaps
+        // CRITICAL FIX: When filter is active (White->Dark), the container MUST be White
+        // to be transformed into the correct dark PaperBg.
+        // If we set it to dark, the filter transforms it to Light (Flash/Border)!
+        backgroundColor: filterStyle !== 'none' ? '#ffffff' : paperBg,
       }}
-      className="shadow-2xl shrink-0 overflow-hidden"
+      className="shrink-0 overflow-hidden"
     >
       {isRendered ? (
         <>
@@ -839,13 +841,17 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
   return (
     <div
       ref={containerRef}
-      className="h-full w-full overflow-auto relative"
+      className={`
+        w-full h-full overflow-auto outline-none transition-colors duration-300
+        cursor-grab active:cursor-grabbing scroll-smooth-tablet relative
+        pdf-viewer-container
+      `}
       style={{
-        backgroundColor: 'var(--lumina-app-bg, #e4e4e7)',
-        touchAction: isMobileOS ? 'pan-y pinch-zoom' : 'auto',
-        display: isMobileOS ? 'flex' : 'block',
-        flexDirection: 'column'
+        backgroundColor: 'var(--lumina-app-bg)',
+        touchAction: 'none',
+        WebkitOverflowScrolling: 'touch'
       }}
+      onContextMenu={(e) => e.preventDefault()}
     >
       {/* SVG Filter Definitions - Rendered once at viewport level */}
       <ThemeFilterDefs theme={theme} variant={themeVariant} />
