@@ -324,11 +324,13 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
   // Sprint 2.8: Hybrid Zoom - Debounce heavy CPU rendering
   const debouncedScale = useDebounce(scale, 150);
 
-  // Touch device detection for adaptive workspace
-  const isTouchDevice = useMemo(() =>
-    typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0),
-    []
-  );
+  // Mobile OS detection for adaptive workspace (Android/iOS/iPadOS only — not Windows touchscreens)
+  const isMobileOS = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    const ua = navigator.userAgent;
+    return /Android/i.test(ua) || /iPad|iPhone|iPod/.test(ua) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPadOS
+  }, []);
 
   // Sprint Perf-A: Pre-filter annotations per page to avoid O(n) re-renders
   const emptyAnnotations: Annotation[] = useMemo(() => [], []);
@@ -787,7 +789,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
 
   // Track user-initiated zoom changes to avoid overriding their preference
   useEffect(() => {
-    if (!isTouchDevice) return;
+    if (!isMobileOS) return;
     // After auto-fit sets the scale, ignore that change; only flag manual zooms
     if (lastAutoFitPageRef.current === pageNumber) {
       lastAutoFitPageRef.current = null;
@@ -802,7 +804,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
   }, [pageNumber]);
 
   useEffect(() => {
-    if (!isTouchDevice) return;
+    if (!isMobileOS) return;
     if (scrollMode !== ScrollMode.PAGED) return;
     if (userHasZoomedRef.current) return;
 
@@ -822,7 +824,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       lastAutoFitPageRef.current = pageNumber;
       onScaleChange?.(fitScale);
     }
-  }, [isTouchDevice, scrollMode, pageNumber, allPagesDimensions, onScaleChange]);
+  }, [isMobileOS, scrollMode, pageNumber, allPagesDimensions, onScaleChange]);
 
   const isContinuous = scrollMode === ScrollMode.CONTINUOUS;
 
@@ -872,7 +874,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
               justifyContent: 'center',
               minWidth: 'fit-content',
               minHeight: 'fit-content',
-              padding: isTouchDevice ? '20px' : '100vh 100vw'
+              padding: isMobileOS ? '20px' : '100vh 100vw'
             }}
           >
             <div id="pdf-scale-layer" className="flex-none flex flex-col items-center gap-8">
