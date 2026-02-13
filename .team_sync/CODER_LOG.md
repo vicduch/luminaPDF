@@ -2197,3 +2197,8 @@ requestAnimationFrame(() => requestAnimationFrame(centerDocument));
 
 **Résultat :** ✅ LuminaPDF atteint un niveau de finition premium. Le moteur de rendu est stable, sans artefacts, et l'identité visuelle est parfaitement cohérente à travers tous les thèmes.
 
+
+### Hotfix: Mobile Scroll & Centering (Portrait)
+- [x] Fix: Enable native vertical scrolling on touch devices (	ouch-action: pan-y).
+- [x] Fix: Center document vertically in portrait mode on tablets (Added flex centering to container).
+- [x] Fix: Ensure swipe detection works correctly with new scroll settings.

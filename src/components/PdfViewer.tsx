@@ -844,11 +844,11 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       className={`
         w-full h-full overflow-auto outline-none transition-colors duration-300
         cursor-grab active:cursor-grabbing scroll-smooth-tablet relative
-        pdf-viewer-container
+        pdf-viewer-container flex flex-col
       `}
       style={{
         backgroundColor: 'var(--lumina-app-bg)',
-        touchAction: 'none',
+        touchAction: 'pan-y',
         WebkitOverflowScrolling: 'touch'
       }}
       onContextMenu={(e) => e.preventDefault()}
@@ -857,6 +857,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       <ThemeFilterDefs theme={theme} variant={themeVariant} />
 
       <Document
+        className="w-full min-h-full flex flex-col items-center justify-center"
         file={file}
         onLoadSuccess={handleDocumentLoad}
         loading={<div className="p-10 text-gray-500 font-medium">Chargement du document...</div>}
@@ -893,6 +894,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
               justifyContent: 'center',
               ...(isMobileOS ? {
                 padding: '0px', // 0 padding lateral to prevent shifting during swipe
+                minHeight: '100%',
                 boxSizing: 'border-box' as const
               } : {
                 minWidth: 'fit-content',
