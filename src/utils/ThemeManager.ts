@@ -462,6 +462,12 @@ export function applyTheme(theme: AppTheme, variant: ThemeVariant = 'light'): vo
     } else {
         root.classList.remove('dark');
     }
+
+    // Update system theme-color for mobile status bar
+    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (metaThemeColor) {
+        metaThemeColor.setAttribute('content', palette.appBg);
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

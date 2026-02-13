@@ -172,6 +172,14 @@
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+     FULLSCREEN & BACKDROP
+     ═══════════════════════════════════════════════════════════════════════ */
+:fullscreen,
+::backdrop {
+  background-color: var(--lumina-app-bg) !important;
+}
+
 /* Touch optimization */
 .pdf-camera-container {
   /* Allow vertical scroll and pinch but capture horizontal for swipe */
