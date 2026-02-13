@@ -260,9 +260,11 @@ function App() {
     }, [handleOpenFile, recentFiles]);
     const handleFitToWidth = useCallback(() => {
         if (containerDimensions.width && containerDimensions.height && pageDimensions.width && pageDimensions.height) {
-            // "Contain" fit: scale so the page fits entirely on screen
-            // The limiting dimension (width or height) determines the scale
-            const margin = 16; // 8px each side
+            // Mobile detection inside handleFitToWidth
+            const isMobileOS = /Android/i.test(navigator.userAgent) || /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+            const margin = isMobileOS ? 0 : 16;
             const fitWidth = (containerDimensions.width - margin) / pageDimensions.width;
             const fitHeight = (containerDimensions.height - margin) / pageDimensions.height;
             const targetScale = Math.min(fitWidth, fitHeight);

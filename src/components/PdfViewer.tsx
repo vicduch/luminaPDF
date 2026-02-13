@@ -754,7 +754,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       const dy = touchEndY - touchStartY.current;
 
       // Ensure it's a horizontal swipe (dx >> dy) and meets threshold
-      const horizontalThreshold = 70;
+      const horizontalThreshold = 50;
       const verticalThreshold = 40;
 
       if (Math.abs(dx) > horizontalThreshold && Math.abs(dy) < verticalThreshold) {
@@ -815,7 +815,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     const currentPageDims = allPagesDimensions.get(pageNumber);
     if (!currentPageDims) return;
 
-    // No margin: page fills container exactly (no horizontal slack = no swipe shift)
+    // No margin on mobile for perfect fit and no swipe shift
     const fitWidth = container.clientWidth / currentPageDims.width;
     const fitHeight = container.clientHeight / currentPageDims.height;
     const fitScale = Math.min(fitWidth, fitHeight);
@@ -835,7 +835,8 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       className="h-full w-full overflow-auto relative"
       style={{
         backgroundColor: 'var(--lumina-app-bg, #e4e4e7)',
-        touchAction: isMobileOS ? 'pan-y pinch-zoom' : 'auto'
+        touchAction: isMobileOS ? 'pan-y pinch-zoom' : 'auto',
+        display: isMobileOS ? 'flex' : 'block' // Flex permits vertical margin:auto centering
       }}
     >
       {/* SVG Filter Definitions - Rendered once at viewport level */}
@@ -877,7 +878,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
               alignItems: 'center',
               justifyContent: 'center',
               ...(isMobileOS ? {
-                padding: '20px',
+                padding: '0px', // 0 padding lateral to prevent shifting during swipe
                 boxSizing: 'border-box' as const
               } : {
                 minWidth: 'fit-content',
