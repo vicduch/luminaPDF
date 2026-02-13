@@ -259,10 +259,13 @@ function App() {
         }
     }, [handleOpenFile, recentFiles]);
     const handleFitToWidth = useCallback(() => {
-        if (containerDimensions.height && pageDimensions.height) {
-            // Fit to height: scale so that one page fills nearly the entire viewport
-            // Only 16px margin (8px top + 8px bottom) for a tight, immersive fit
-            const targetScale = (containerDimensions.height - 16) / pageDimensions.height;
+        if (containerDimensions.width && containerDimensions.height && pageDimensions.width && pageDimensions.height) {
+            // "Contain" fit: scale so the page fits entirely on screen
+            // The limiting dimension (width or height) determines the scale
+            const margin = 16; // 8px each side
+            const fitWidth = (containerDimensions.width - margin) / pageDimensions.width;
+            const fitHeight = (containerDimensions.height - margin) / pageDimensions.height;
+            const targetScale = Math.min(fitWidth, fitHeight);
             setScale(targetScale);
 
             // Center the document after the layout updates from the scale change
@@ -278,7 +281,7 @@ function App() {
                 }
             }));
         }
-    }, [containerDimensions.height, pageDimensions.height]);
+    }, [containerDimensions.width, containerDimensions.height, pageDimensions.width, pageDimensions.height]);
 
     const handleContainerDimensions = useCallback((dims: { width: number; height: number }) => {
         setContainerDimensions(dims);

@@ -814,11 +814,11 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     const currentPageDims = allPagesDimensions.get(pageNumber);
     if (!currentPageDims) return;
 
-    const containerWidth = container.clientWidth;
-    const horizontalPadding = 40; // 20px each side
-    const availableWidth = containerWidth - horizontalPadding;
+    const margin = 40; // 20px each side
+    const fitWidth = (container.clientWidth - margin) / currentPageDims.width;
+    const fitHeight = (container.clientHeight - margin) / currentPageDims.height;
+    const fitScale = Math.min(fitWidth, fitHeight);
 
-    const fitScale = availableWidth / currentPageDims.width;
     // Only auto-fit if there's a meaningful difference (>2%)
     if (Math.abs(fitScale - scale) > 0.02) {
       lastAutoFitPageRef.current = pageNumber;
