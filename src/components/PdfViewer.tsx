@@ -361,6 +361,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
   const contentRef = useRef<HTMLDivElement>(null);
   const [pageDimensions, setPageDimensionsInternal] = useState({ width: 612, height: 792 });
   const [allPagesDimensions, setAllPagesDimensions] = useState<Map<number, { width: number, height: number }>>(new Map());
+  const [containerDims, setContainerDims] = useState({ width: 0, height: 0 });
 
   // Sprint 2.6: Stable Zoom - Keep center fixed
   const lastScaleRef = useRef(scale);
@@ -602,6 +603,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       if (entries[0]) {
         const { width, height } = entries[0].contentRect;
         onContainerDimensions({ width, height });
+        setContainerDims({ width, height });
       }
     });
 
@@ -767,9 +769,16 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       const verticalThreshold = 40;
 
       if (Math.abs(dx) > horizontalThreshold && Math.abs(dy) < verticalThreshold) {
-        // TRIGGER CONDITION: Only if we are at the physical border of the scroll
-        const isAtLeft = container.scrollLeft <= 5;
-        const isAtRight = container.scrollLeft + container.clientWidth >= container.scrollWidth - 5;
+        // TRIGGER CONDITION: Check if the document edges are visible/reached
+        const pageEl = container.querySelector(`[data-page-number="${pageNumber}"]`) as HTMLElement | null;
+        if (!pageEl) return;
+
+        const pageRect = pageEl.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+
+        // Tolerance of 10px for alignment
+        const isAtLeft = pageRect.left >= containerRect.left - 10;
+        const isAtRight = pageRect.right <= containerRect.right + 10;
 
         if (dx > 0 && isAtLeft) {
           // Swipe Right -> Previous Page
@@ -834,7 +843,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       lastAutoFitPageRef.current = pageNumber;
       onScaleChange?.(fitScale);
     }
-  }, [isMobileOS, scrollMode, pageNumber, allPagesDimensions, onScaleChange]);
+  }, [isMobileOS, scrollMode, pageNumber, allPagesDimensions, onScaleChange, containerDims]);
 
   const isContinuous = scrollMode === ScrollMode.CONTINUOUS;
 
@@ -844,11 +853,11 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       className={`
         w-full h-full overflow-auto outline-none transition-colors duration-300
         cursor-grab active:cursor-grabbing scroll-smooth-tablet relative
-        pdf-viewer-container flex flex-col
+        pdf-viewer-container
       `}
       style={{
         backgroundColor: 'var(--lumina-app-bg)',
-        touchAction: 'pan-y',
+        touchAction: 'pan-y pinch-zoom',
         WebkitOverflowScrolling: 'touch'
       }}
       onContextMenu={(e) => e.preventDefault()}
@@ -857,7 +866,6 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       <ThemeFilterDefs theme={theme} variant={themeVariant} />
 
       <Document
-        className="w-full min-h-full flex flex-col items-center justify-center"
         file={file}
         onLoadSuccess={handleDocumentLoad}
         loading={<div className="p-10 text-gray-500 font-medium">Chargement du document...</div>}
@@ -880,8 +888,8 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
             transform: `scale(${scale})`,
             transformOrigin: 'center center',
             willChange: 'transform',
-            display: isMobileOS ? 'block' : 'inline-block',
-            ...(isMobileOS ? { margin: 'auto' } : { verticalAlign: 'top' as const })
+            display: 'inline-block',
+            verticalAlign: 'top' as const
           }}
         >
           <div
@@ -892,15 +900,9 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              ...(isMobileOS ? {
-                padding: '0px', // 0 padding lateral to prevent shifting during swipe
-                minHeight: '100%',
-                boxSizing: 'border-box' as const
-              } : {
-                minWidth: 'fit-content',
-                minHeight: 'fit-content',
-                padding: '100vh 100vw'
-              })
+              minWidth: 'fit-content',
+              minHeight: 'fit-content',
+              padding: '100vh 100vw'
             }}
           >
             <div id="pdf-scale-layer" className="flex-none flex flex-col items-center gap-8">
