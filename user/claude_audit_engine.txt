@@ -1,0 +1,255 @@
+                                                                                                            Phase 1: Fix useMemo inside useCallback (P0 Critical)                                                   
+                                                                                                          
+● The core issue: useMemo at line 578 is called inside renderPage (a useCallback). This violates React's  
+  Rules of Hooks. The fix: extract the geometry calculation out of renderPage and compute it at the         component level.                              
+                                                                                                            The key insight is that in PAGED mode, pageOffset is always 0, and in CONTINUOUS mode, pageOffset varies
+   per page. We need to restructure so that geometry is computed properly for each page without calling     hooks inside callbacks.                                                                                 
+                                                                                                          
+● Update(src\components\PdfViewer.tsx)                                                                    
+  ⎿  Added 37 lines, removed 44 lines                                                                           556      return renderQualityScale;      
+      557    }, [scale, renderQualityScale]);                                                             
+      558                                                                                                 
+      559 -  const renderPage = useCallback((pageNum: number, pageOffset: number = 0) => {                
+      560 -    // Sprint 2.3: Simplified Zoom Architecture (UX Stabilization)
+      561 -    // Sprint 2.4: Workspace Acrobat (Normalisation)                                           
+      562 -    // Sprint 2.5: Stabilisation & Discrétisation (8px grid)                                   
+      563 -    // ═══════════════════════════════════════════════════════════════════════                       564 -    // - CSS transform uses LIVE scale for instant visual feedback
+      565 -    // - TileLayer receives NORMALIZED geometry for document-relative rendering                
+      566 -    // - qualityScale remains DEBOUNCED for stable LOD/tile calculation                        
+      567 -    // - Geometry is discretized to 8px to prevent sub-pixel flicker                                 568 -    // ═══════════════════════════════════════════════════════════════════════                       559 +  // ═══════════════════════════════════════════════════════════════════════                         560 +  // GEOMETRY (Sprint 3.0: Extracted from renderPage to fix Rules of Hooks violation)                561 +  // ═══════════════════════════════════════════════════════════════════════                   
+      562 +  // Previously, geometry was computed via useMemo INSIDE renderPage (useCallback),     
+      563 +  // violating React's Rules of Hooks and causing unstable object identity.                    
+      564 +  // Now computed at component level with stable primitives.                                   
+      565
+      570 -    // Normalize scroll position to be relative to the document (0,0 = top-left of docum       
+          -ent)                                                                                           
+      571 -    const rawNormalizedScroll = CoordinateSystem.normalizeScrollPosition(scrollPosition,       
+          - workspacePadding);                                                                            
+      566 +  // Normalize scroll position relative to document (0,0 = top-left of document)               
+      567 +  const rawNormalizedScroll = useMemo(                                                         
+      568 +    () => CoordinateSystem.normalizeScrollPosition(scrollPosition, workspacePadding),          
+      569 +    [scrollPosition.x, scrollPosition.y, workspacePadding.width, workspacePadding.height       
+          +]                                                                                              
+      570 +  );                                                                                           
+      571
+      573 -    // Discretize scroll to 8px grid to stabilize tile rendering reference frame               
+      574 -    const discretizedX = Math.round(rawNormalizedScroll.x / 8) * 8;                            
+      575 -    const discretizedY = Math.round((rawNormalizedScroll.y - pageOffset) / 8) * 8;             
+      572 +  // Discretize scroll to 8px grid to stabilize tile rendering reference frame                 
+      573 +  const discretizedX = Math.round(rawNormalizedScroll.x / 8) * 8;                              
+      574 +  const discretizedY = Math.round(rawNormalizedScroll.y / 8) * 8;                              
+      575
+      577 -    // Geometry for TileLayer uses discretized values for stability                            
+      578 -    const geometry = useMemo(() => ({                                                          
+      579 -      scale: scale,  // Live scale for accurate viewport culling                               
+      580 -      x: discretizedX,                                                                         
+      581 -      y: discretizedY                                                                          
+      582 -    }), [scale, discretizedX, discretizedY]);                                                  
+      576 +  // Scaled page dimensions (shared by all pages)                                              
+      577 +  const scaledWidth = pageDimensions.width * scale;                                            
+      578 +  const scaledHeight = pageDimensions.height * scale;                                          
+      579
+      584 -    const scaledWidth = pageDimensions.width * scale;                                          
+      585 -    const scaledHeight = pageDimensions.height * scale;                                        
+      580 +  const renderPage = useCallback((pageNum: number, pageOffset: number = 0) => {                
+      581 +    // Sprint 3.0: geometry is now computed per-page using stable primitives                   
+      582 +    // pageOffset adjusts Y for continuous mode (each page has different vertical offset       
+          +)                                                                                              
+      583 +    const pageDiscrY = Math.round((discretizedY - Math.round(pageOffset / 8) * 8) / 8) *       
+          + 8;                                                                                            
+      584
+      585 +    // Per-page geometry object — identity changes only when primitives change                 
+      586 +    const geometry = {                                                                         
+      587 +      scale: scale,                                                                            
+      588 +      x: discretizedX,                                                                         
+      589 +      y: pageDiscrY                                                                            
+      590 +    };                                                                                         
+      591 +                                                                                               
+      592      return (
+      593        <div
+      594          key={`page_${pageNum}`}
+     ...
+      605            <div
+      606              className="absolute inset-0 overflow-hidden"
+      607              style={{
+      603 -              // Sprint 2.3: Direct scale transform (no compensation wrapper)                  
+      604 -              // Sprint 2.5: transformOrigin '0 0' for precise layer alignment                 
+      608                transform: `scale(${scale})`,
+      609                transformOrigin: '0 0',
+      610                width: pageDimensions.width,
+     ...
+      629            </div>
+      630          )}
+      631
+      629 -        {/*                                                                                    
+      630 -                  react-pdf Page for text selection and annotations.                           
+      631 -                  The canvas is hidden via CSS, but text/annotation layers remain visibl       
+          -e.                                                                                             
+      632 -                */}                                                                            
+      632 +        {/* react-pdf Page for text selection and annotations */}                              
+      633          <div
+      634            className="absolute inset-0 z-10 pdf-page-text-layer"
+      635 -          style={{                                                                             
+      636 -            // Allow pointer events for text selection                                         
+      637 -            pointerEvents: 'auto',                                                             
+      638 -          }}                                                                                   
+      635 +          style={{ pointerEvents: 'auto' }}                                                    
+      636          >
+      637            <style>{`
+      641 -                        /* Hide only the canvas rendered by react-pdf, keep text layer v       
+          -isible */                                                                                      
+      638                          .pdf-page-text-layer canvas {
+      643 -                             display: none !important;                                         
+      639 +                             display: none !important;                                         
+      640                          }
+      645 -                        /* Ensure text layer is positioned correctly */                        
+      641                          .pdf-page-text-layer .react-pdf__Page__textContent {
+      642                              position: absolute !important;
+      643                              inset: 0 !important;
+      644                              overflow: hidden !important;
+      645                          }
+      651 -                        /* Make text selectable */                                             
+      646                          .pdf-page-text-layer .react-pdf__Page__textContent span {
+      647                              color: transparent;
+      648                              cursor: text;
+     ...
+      651                              background: rgba(0, 100, 255, 0.3);
+      652                          }
+      653                      `}</style>
+      660 -          {/* Default React-PDF rendering */}                                                  
+      654            <Page
+      655              pageNumber={pageNum}
+      656              width={scaledWidth}
+     ...
+      663          {/* Annotation overlay */}
+      664          {isAnnotationMode && (
+      665            <div
+      673 -            className="absolute inset-0 z-40 cursor-crosshair                                  
+      666 +            className="absolute inset-0 z-40 cursor-crosshair                                  
+      667                                     bg-black/5 hover:bg-black/10 transition-colors"
+      668              onClick={(e) => handlePageClick(e, pageNum)}
+      669              title="Cliquez pour ajouter une note"
+     ...
+      679        </div>
+      680      );
+      681    }, [
+      689 -    scrollPosition,                                                                            
+      690 -    workspacePadding, // Sprint 2.4                                                            
+      682 +    discretizedX,                                                                              
+      683 +    discretizedY,                                                                              
+      684      scale,
+      692 -    effectiveQualityScale,  // Sprint 2.3: Only qualityScale remains debounced                 
+      685 +    scaledWidth,                                                                               
+      686 +    scaledHeight,                                                                              
+      687 +    effectiveQualityScale,                                                                     
+      688      pageDimensions,
+      689      containerWidth,
+      690      containerHeight,
+     ...
+      693      handlePageClick,
+      694      handlePageLoadSuccess,
+      695      renderAnnotations,
+      701 -    theme,                                                                                     
+      702 -    themeVariant,                                                                              
+      696      themePalette,
+      697      renderPalette,
+      698      file
+
+● Phase 2: Verify Tile Layer vs Text Layer synchronization             
+                                                             
+● The synchronization is correct:
+  - Tile Layer: Container div at pageDimensions.width × pageDimensions.height with transform: 
+  scale(${scale}) and transformOrigin: '0 0' → visual output = pageDimensions * scale from top-left
+  - Text Layer: <Page width={scaledWidth}> where scaledWidth = pageDimensions.width * scale → react-pdf     renders at pre-scaled size                                                                              
+  - Both are inside a parent div of scaledWidth × scaledHeight                                              - Both use absolute inset-0 positioning                                                                 
+                                                                                                          
+  The alignment is correct since Sprint 2.5 (transformOrigin: '0 0'). No code changes needed.
+                                                                                                          
+● Phase 3: Fix geometry pipeline stability                                                                
+   
+● The Phase 1 fix already addresses the core geometry stability issue. However, TileLayer still uses
+  geometry.scale, geometry.x, geometry.y as primitive dependencies (lines 149-155), which is correct. But
+  since geometry is now a plain object created inside renderPage, React will see a new reference each
+  render. The TileLayer's useMemo decomposition into primitives (line 149-160) correctly prevents           re-computation unless the actual values change. This is already properly handled.                       
+                                                                                                          
+  Let me also verify and clean up the effectiveQualityScale memo which contains a debug console.log:
+                                                                                                          
+● Update(src\components\PdfViewer.tsx)
+  ⎿  Removed 5 lines                                                                                            548      if (scale > renderQualityScale * 1.1) {
+      549        return scale;                                                                            
+      550      }                                                                                          
+      551 -    // Otherwise use debounced quality (stable)
+      552 -    // 🔬 DEBUG: Log quality scale decision
+      553 -    if (Math.abs(scale - renderQualityScale) > 0.01) {
+      554 -      console.log(`[PdfViewer DEBUG] Scale: ${scale.toFixed(3)}, Debounced: ${renderQual
+          -ityScale.toFixed(3)} -> Effective: ${(scale > renderQualityScale * 1.1 || scale < render                 -QualityScale * 0.6 ? scale : renderQualityScale).toFixed(3)}`);
+      555 -    }                                                                                          
+      551      return renderQualityScale;                                                                 
+      552    }, [scale, renderQualityScale]);
+      553
+
+● Phase 4: Scrollbar positioning
+                                                             
+● Analysis of the scrollbar positioning:                       
+    
+  - #pdf-scroll-container (PdfViewer:714) has overflow: auto and w-full h-full
+  - It sits inside div.flex-1.relative.h-full.w-full.overflow-hidden (App.tsx:452)                          - When AiPanel is closed: PdfViewer occupies 100% width → scrollbar at right edge of viewport ✅        
+  - When AiPanel is open: PdfViewer is flex-1 → scrollbar is at right edge of the flex-1 area (left of      AiPanel) — this is correct and expected behavior                                                        
+                                                                                                            The 50% workspace padding creates a large scrollable area. The scrollbar stays at the right edge of the
+  scroll container. This is working as designed — the scrollbar is always at the container's right edge.                                                                                                            
+  No code changes needed for this phase. The "scrollbar décalée" only occurs when AiPanel is open, which  
+  is the expected layout behavior.
+
+● Phase 5: Zoom focal point conflicts       
+    
+● The conflict analysis:
+    
+  1. useZoom.ts:192 useLayoutEffect fires on [scale, ...] — restores focal point after zoom
+  2. PdfViewer.tsx:270 useLayoutEffect fires on [pageNumber, isFitToScreenAction, scrollMode, 
+  workspacePadding] — scrolls to origin on first render, page change, or fit-to-screen
+                                                              
+  Conflict scenarios:
+  - First render: PdfViewer's isFirstRenderRef guard handles this — scrolls to origin. useZoom has no       pending zoom, so no conflict. ✅
+  - Page change (PAGED mode): PdfViewer scrolls to origin. useZoom only fires if scale changed, but page    changes don't change scale. No conflict. ✅                                                             
+  - Fit to screen: PdfViewer scrolls to origin. useZoom has FIT_TO_SCREEN mode bypass (line 212). No      
+  conflict. ✅                                                                                            
+  - Resize during zoom: workspacePadding changes → PdfViewer fires. But guards prevent scroll unless
+  isFirstRenderRef or page changed. No conflict. ✅
+  - Page change in CONTINUOUS mode: PdfViewer explicitly skips scroll for CONTINUOUS mode (line 288). ✅  
+
+  The existing guards are sufficient. The only remaining risk is the workspacePadding dependency in       
+  PdfViewer's useLayoutEffect — if workspacePadding changes, the effect runs but the guards at lines      
+  274-296 prevent any scroll action unless it's first render, page change, or fit-to-screen. This is safe.
+
+  No code changes needed for the zoom focal point.
+
+● Phase 6: Remove over-logging and fix performance issues
+    
+● Let me fix all the critical logging and the duplicated global error listeners.
+     
+  6.1: Remove all debug console.logs from TileLayer.tsx       
+     
+● Update(src\components\TileLayer.tsx)                      
+  ⎿  Removed 3 lines                                                                                            137          const lod = tilesWithGeneration.length > 0 ? tilesWithGeneration[0].lod : 1;           
+      138          const ids = new Set(tilesWithGeneration.map(t => t.id));                                     139                     
+      140 -        // 🔬 DEBUG: Log calculated tiles (Sprint 2.2.1: moved before return)                        141 -        console.log(`[TileLayer DEBUG] Update geometry: scale=${geometry.scale.toFixed(2       
+          -)}, quality=${qualityScale.toFixed(2)} -> LOD=${lod}, visible=${tilesWithGeneration.leng
+          -th}`);                                                                                         
+      142 -                                                                                                     140          return {
+      141              visibleTiles: tilesWithGeneration,                                                 
+      142              currentLod: lod,
+
+● Update(src\components\TileLayer.tsx)                                  
+  ⎿  Added 1 line, removed 3 lines
+      230              );
+      231 
+      232              if (overlaps && cachedTile.isReady) {
+      233 -                cachedTile.lastAccess = now; // Update access time for placeholders     
+      233 +                cachedTile.lastAccess = now;
+      234                  placeholders.push(cachedTile);
+      235 -                // Sprint 2.2.1a DEBUG: Log placeholder selection
+      236 -                console.log(`[TileLayer DEBUG] Placeholder: LOD ${cachedTile.lod} < curr                 -ent ${currentLod} ✓`);
+      235              }                                                                                  
+      236          });                                                                                    
+      237
+  ⎿  You've hit your limit · resets 1pm (Europe/Paris)
