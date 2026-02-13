@@ -832,7 +832,12 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     <div
       ref={containerRef}
       className="h-full w-full overflow-auto relative"
-      style={{ backgroundColor: 'var(--lumina-app-bg, #e4e4e7)' }}
+      style={{
+        backgroundColor: 'var(--lumina-app-bg, #e4e4e7)',
+        display: isMobileOS ? 'flex' : 'block',
+        justifyContent: isMobileOS ? 'center' : 'initial',
+        alignItems: isMobileOS ? 'center' : 'initial'
+      }}
     >
       {/* SVG Filter Definitions - Rendered once at viewport level */}
       <ThemeFilterDefs theme={theme} variant={themeVariant} />
@@ -873,8 +878,6 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
               alignItems: 'center',
               justifyContent: 'center',
               ...(isMobileOS ? {
-                minWidth: '100%',
-                minHeight: '100%',
                 padding: '20px',
                 boxSizing: 'border-box' as const
               } : {
