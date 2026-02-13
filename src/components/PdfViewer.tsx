@@ -836,7 +836,8 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       style={{
         backgroundColor: 'var(--lumina-app-bg, #e4e4e7)',
         touchAction: isMobileOS ? 'pan-y pinch-zoom' : 'auto',
-        display: isMobileOS ? 'flex' : 'block' // Flex permits vertical margin:auto centering
+        display: isMobileOS ? 'flex' : 'block',
+        flexDirection: 'column'
       }}
     >
       {/* SVG Filter Definitions - Rendered once at viewport level */}

@@ -131,10 +131,10 @@ const AiPanel: React.FC<AiPanelProps> = ({ isOpen, onClose, currentPageText, pdf
       className={`
         flex flex-col min-w-0 transition-all duration-500 cubic-bezier(0.16, 1, 0.3, 1) h-full
         ${isOpen
-          ? 'fixed inset-0 z-50 md:relative md:inset-auto md:z-auto md:w-[380px] lg:w-[420px] opacity-100 translate-x-0 border-l'
-          : 'w-0 opacity-0 translate-x-10 overflow-hidden'
+          ? 'fixed inset-0 z-50 md:relative md:inset-auto md:z-auto md:w-[380px] lg:w-[420px] opacity-100 translate-x-0 border-l glass-premium'
+          : 'w-0 opacity-0 translate-x-10 overflow-hidden border-0'
         }
-        ${colors} glass-premium
+        ${colors}
       `}
     >
       <div className="flex flex-col h-full min-w-0">
