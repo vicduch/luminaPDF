@@ -633,7 +633,7 @@ function App() {
     return (
         <div
             className={`
-        flex flex-col h-screen w-full overflow-hidden transition-colors duration-300
+        flex flex-col h-[100dvh] w-full overflow-hidden transition-colors duration-300
         ${isDarkVariant(themeVariant) ? 'dark' : ''}
         bg-[var(--lumina-bg)]
       `}
