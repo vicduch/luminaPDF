@@ -121,6 +121,7 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
   // No-flash zoom transitions:
   // keep currentSnapshot visible until the latest HD render succeeds.
   const [currentSnapshot, setCurrentSnapshot] = React.useState<string | null>(null);
+  const [isSnapshotReady, setIsSnapshotReady] = React.useState(false);
   const [isTransitioning, setIsTransitioning] = React.useState(false);
   const prevScaleRef = useRef(scale);
   const prevDebouncedScaleRef = useRef(debouncedScale);
@@ -138,6 +139,7 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
 
           // Capture current frame as SD snapshot.
           if (dataURL) {
+            setIsSnapshotReady(false);
             setCurrentSnapshot(dataURL);
             setIsTransitioning(true);
           }
@@ -166,6 +168,7 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
       requestAnimationFrame(() => {
         if (epochAtRenderStart !== latestRenderEpochRef.current) return;
         setIsTransitioning(false);
+        setIsSnapshotReady(false);
         setCurrentSnapshot(null);
       });
     });
@@ -281,6 +284,8 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
           {currentSnapshot && isTransitioning && (
             <img
               src={currentSnapshot}
+              onLoad={() => setIsSnapshotReady(true)}
+              onError={() => setIsSnapshotReady(false)}
               alt=""
               style={{
                 position: 'absolute',
@@ -304,7 +309,7 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
               transform: `scale(${inverseScale})`,
               transformOrigin: '0 0',
               width: renderWidth,
-              opacity: isTransitioning && currentSnapshot ? 0 : 1,
+              opacity: isTransitioning && currentSnapshot && isSnapshotReady ? 0 : 1,
               transition: 'opacity 120ms ease-in',
             }}
           >
@@ -956,7 +961,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
           id="pdf-camera"
           style={{
             transform: `scale(${scale})`,
-            transformOrigin: isContinuous ? 'top center' : 'center center',
+            transformOrigin: 'center center',
             willChange: 'transform',
             display: 'inline-block',
             verticalAlign: 'top' as const
