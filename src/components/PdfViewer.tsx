@@ -114,7 +114,7 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
   const elementRef = useRef<HTMLDivElement>(null);
   const canvasWrapperRef = useRef<HTMLDivElement>(null);
 
-  // Priority hint for PDF.js loading, no hard cleanup gate to keep scroll topology stable.
+  // Priority hint for <Page loading> attribute (does not affect observer lifecycle)
   const distanceFromCurrent = currentPage ? Math.abs(pageNumber - currentPage) : Infinity;
   const isPriority = distanceFromCurrent <= 3;
 
@@ -203,13 +203,12 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
     activeObserver.observe(el);
 
     // Observer 2: Render eligibility (reversible — load when near, unload when far)
-    // Keep a stable margin to avoid discontinuities in long continuous documents.
-    const rootMargin = '1800px';
+    // Stable 2000px margin — decoupled from currentPage to prevent observer churn
     const renderObserver = new IntersectionObserver(
       ([entry]) => {
         setIsRendered(entry.isIntersecting);
       },
-      { root, rootMargin }
+      { root, rootMargin: '2000px' }
     );
     renderObserver.observe(el);
 
@@ -217,7 +216,7 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
       activeObserver.disconnect();
       renderObserver.disconnect();
     };
-  }, [pageNumber, onVisible, containerRef, isPriority]);
+  }, [pageNumber, onVisible, containerRef]);
 
   // Sprint 2.9: Camera Architecture - Physical layout dimensions are FIXED 1:1
   const width = pageDimensions.width;
@@ -352,7 +351,9 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
   );
 };
 
-// Sprint Perf-A: Memoize LazyPage to prevent unnecessary re-renders
+// Memoize LazyPage — currentPage intentionally excluded: observer lifecycle is
+// decoupled from currentPage, so re-rendering all pages on every scroll step
+// is unnecessary and causes 350× observer churn.
 const LazyPage = React.memo(LazyPageInner, (prev, next) => {
   return prev.pageNumber === next.pageNumber
     && prev.debouncedScale === next.debouncedScale
@@ -362,8 +363,7 @@ const LazyPage = React.memo(LazyPageInner, (prev, next) => {
     && prev.themeVariant === next.themeVariant
     && prev.annotations === next.annotations
     && prev.isAnnotationMode === next.isAnnotationMode
-    && prev.annotationColor === next.annotationColor
-    && prev.currentPage === next.currentPage; // Sprint Perf-B: Track current page changes
+    && prev.annotationColor === next.annotationColor;
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
