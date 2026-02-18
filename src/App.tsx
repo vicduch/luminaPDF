@@ -270,10 +270,17 @@ function App() {
             const targetScale = Math.min(fitWidth, fitHeight);
             setScale(targetScale);
 
-            // Center the document after the layout updates from the scale change
+            // Reposition after scale update:
+            // continuous -> keep current page in view
+            // paged -> keep centered camera behavior
             requestAnimationFrame(() => requestAnimationFrame(() => {
                 const container = pdfViewerRef.current?.containerRef?.current;
                 const content = pdfViewerRef.current?.contentRef?.current;
+                if (scrollMode === ScrollMode.CONTINUOUS && pdfViewerRef.current) {
+                    pdfViewerRef.current.scrollToPage(pageNumber);
+                    return;
+                }
+
                 if (container && content) {
                     container.scrollTo({
                         left: (content.scrollWidth / 2) - (container.clientWidth / 2),
@@ -283,7 +290,7 @@ function App() {
                 }
             }));
         }
-    }, [containerDimensions.width, containerDimensions.height, pageDimensions.width, pageDimensions.height]);
+    }, [containerDimensions.width, containerDimensions.height, pageDimensions.width, pageDimensions.height, scrollMode, pageNumber]);
 
     const handleContainerDimensions = useCallback((dims: { width: number; height: number }) => {
         setContainerDimensions(dims);
