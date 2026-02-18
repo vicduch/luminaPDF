@@ -449,7 +449,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
 
       // If restoring a reading position in continuous mode, scroll to that page
       if (scrollMode === ScrollMode.CONTINUOUS && pageNumber > 1) {
-        const paddingTop = window.innerHeight; // 100vh
+        const paddingTop = container.clientHeight;
         const gap = 32; // gap-8 = 2rem = 32px
         let targetTop = paddingTop;
 
@@ -501,8 +501,8 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     const stabilizePosition = () => {
       if (scrollMode === ScrollMode.CONTINUOUS && targetPage > 0 && allPagesDimensions.size > 0) {
         // Calculate the vertical offset of the target page
-        // Account for: padding-top (100vh) + cumulative page heights + gaps
-        const paddingTop = window.innerHeight; // 100vh
+        // Account for: padding-top (container height) + cumulative page heights + gaps
+        const paddingTop = container.clientHeight;
         const gap = 32; // gap-8 = 2rem = 32px
         let targetTop = paddingTop;
 
@@ -838,14 +838,26 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       const verticalThreshold = 40;
 
       if (Math.abs(dx) > horizontalThreshold && Math.abs(dy) < verticalThreshold) {
-        // Sprint Perf-D: Check if SCROLL has reached container edges (works when zoomed)
-        const { scrollLeft, scrollWidth, clientWidth } = container;
-        const tolerance = 10; // 10px edge tolerance
+        // In paged mode with no meaningful zoom, allow direct swipe navigation.
+        // Edge checks are reserved for zoomed pages to avoid panning conflicts.
+        const isZoomed = scale > 1.05;
+        let isAtLeftEdge = true;
+        let isAtRightEdge = true;
 
-        // Left edge: scroll is at or near 0
-        const isAtLeftEdge = scrollLeft <= tolerance;
-        // Right edge: scroll has reached the end
-        const isAtRightEdge = scrollLeft + clientWidth >= scrollWidth - tolerance;
+        if (isZoomed) {
+          const tolerance = 16;
+          const currentPageEl = container.querySelector(`[data-page-number="${pageNumber}"]`) as HTMLElement | null;
+          if (currentPageEl) {
+            const pageRect = currentPageEl.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            isAtLeftEdge = pageRect.left >= containerRect.left - tolerance;
+            isAtRightEdge = pageRect.right <= containerRect.right + tolerance;
+          } else {
+            const { scrollLeft, scrollWidth, clientWidth } = container;
+            isAtLeftEdge = scrollLeft <= tolerance;
+            isAtRightEdge = scrollLeft + clientWidth >= scrollWidth - tolerance;
+          }
+        }
 
         if (dx > 0 && isAtLeftEdge) {
           // Swipe Right -> Previous Page (only if scroll is at left edge)
@@ -867,7 +879,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       container.removeEventListener('touchstart', handleTouchStart);
       container.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [scrollMode, pageNumber, numPages, setPageNumber]);
+  }, [scrollMode, pageNumber, numPages, setPageNumber, scale]);
 
   // Auto Page-Fit: On tablet in paginated mode, fit page to viewport width
   const userHasZoomedRef = useRef(false);
@@ -955,7 +967,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
           id="pdf-camera"
           style={{
             transform: `scale(${scale})`,
-            transformOrigin: 'center center',
+            transformOrigin: isContinuous ? 'top center' : 'center center',
             willChange: 'transform',
             display: 'inline-block',
             verticalAlign: 'top' as const
@@ -971,7 +983,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
               justifyContent: 'center',
               minWidth: 'fit-content',
               minHeight: 'fit-content',
-              padding: '100vh 100vw'
+              padding: '100dvh 100vw'
             }}
           >
             <div id="pdf-scale-layer" className="flex-none flex flex-col items-center gap-8">
