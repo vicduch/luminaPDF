@@ -62,6 +62,7 @@ interface LazyPageProps {
   onLoadSuccess?: (page: any) => void;
   onVisible?: (pageNumber: number) => void;
   forceRender?: boolean;
+  currentPage?: number; // NEW: For priority-based loading
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -108,48 +109,79 @@ const ThemeFilterDefs: React.FC<{ theme?: AppTheme, variant?: ThemeVariant }> = 
   );
 };
 
-const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedScale, pageDimensions, containerRef, theme, themeVariant, annotations = [], isAnnotationMode = false, annotationColor = '#facc15', onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation, onLoadSuccess, onVisible, forceRender = false }) => {
+const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedScale, pageDimensions, containerRef, theme, themeVariant, annotations = [], isAnnotationMode = false, annotationColor = '#facc15', onAddAnnotation, onUpdateAnnotation, onDeleteAnnotation, onLoadSuccess, onVisible, forceRender = false, currentPage }) => {
   const [isRendered, setIsRendered] = React.useState(forceRender);
   const elementRef = useRef<HTMLDivElement>(null);
   const canvasWrapperRef = useRef<HTMLDivElement>(null);
 
-  // Snapshot double-buffer: captures the current canvas before HD re-render
-  const [snapshot, setSnapshot] = React.useState<string | null>(null);
-  const prevDebouncedScale = useRef(debouncedScale);
+  // Priority hint for PDF.js loading, no hard cleanup gate to keep scroll topology stable.
+  const distanceFromCurrent = currentPage ? Math.abs(pageNumber - currentPage) : Infinity;
+  const isPriority = distanceFromCurrent <= 3;
 
-  // Before HD re-render, capture a snapshot of the current canvas
+  // Sprint Perf-C: Triple Buffer — zero-flash zoom transitions
+  // currentSnapshot: visible during zoom (instant capture)
+  // previousSnapshot: fallback during transition
+  const [currentSnapshot, setCurrentSnapshot] = React.useState<string | null>(null);
+  const [previousSnapshot, setPreviousSnapshot] = React.useState<string | null>(null);
+  const [isTransitioning, setIsTransitioning] = React.useState(false);
+  const prevScaleRef = useRef(scale);
+  const prevDebouncedScaleRef = useRef(debouncedScale);
+
+  // INSTANT capture on scale change (synchronous, no flash)
   useEffect(() => {
-    if (debouncedScale !== prevDebouncedScale.current && isRendered) {
+    if (scale !== prevScaleRef.current && isRendered) {
       const canvas = canvasWrapperRef.current?.querySelector('canvas');
       if (canvas) {
         try {
-          canvas.toBlob((blob) => {
-            if (blob) {
-              // Revoke any previous snapshot URL
-              if (snapshot) URL.revokeObjectURL(snapshot);
-              setSnapshot(URL.createObjectURL(blob));
-            }
-          }, 'image/png');
-        } catch {
-          // Canvas might be tainted or unavailable
+          // Synchronous capture (no async delay = no flash)
+          const dataURL = canvas.toDataURL('image/png', 0.92); // 92% quality for speed
+
+          // Shift: current → previous, new → current
+          if (currentSnapshot) {
+            if (previousSnapshot) URL.revokeObjectURL(previousSnapshot);
+            setPreviousSnapshot(currentSnapshot);
+          }
+          setCurrentSnapshot(dataURL);
+          setIsTransitioning(true);
+        } catch (err) {
+          // Canvas might be tainted (CORS) — fallback to no snapshot
+          console.warn('[LazyPage] Canvas capture failed:', err);
         }
       }
-      prevDebouncedScale.current = debouncedScale;
+      prevScaleRef.current = scale;
     }
-  }, [debouncedScale, isRendered]);
+  }, [scale, isRendered]);
 
-  // When the new canvas finishes rendering, clear the snapshot
+  // Trigger HD re-render on debouncedScale stabilization
+  useEffect(() => {
+    if (debouncedScale !== prevDebouncedScaleRef.current) {
+      prevDebouncedScaleRef.current = debouncedScale;
+      // Transitioning flag will be cleared by handleRenderSuccess
+    }
+  }, [debouncedScale]);
+
+  // When HD canvas finishes rendering, clear snapshots with fade-out
   const handleRenderSuccess = useCallback(() => {
-    if (snapshot) {
-      URL.revokeObjectURL(snapshot);
-      setSnapshot(null);
+    if (isTransitioning) {
+      // Delay cleanup to allow CSS transition to complete
+      setTimeout(() => {
+        setIsTransitioning(false);
+        if (currentSnapshot && !currentSnapshot.startsWith('blob:')) {
+          // dataURL doesn't need revoke, just clear
+          setCurrentSnapshot(null);
+        }
+        if (previousSnapshot && !previousSnapshot.startsWith('blob:')) {
+          setPreviousSnapshot(null);
+        }
+      }, 100); // Match CSS transition duration
     }
-  }, [snapshot]);
+  }, [isTransitioning, currentSnapshot, previousSnapshot]);
 
-  // Cleanup snapshot URL on unmount
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (snapshot) URL.revokeObjectURL(snapshot);
+      if (currentSnapshot?.startsWith('blob:')) URL.revokeObjectURL(currentSnapshot);
+      if (previousSnapshot?.startsWith('blob:')) URL.revokeObjectURL(previousSnapshot);
     };
   }, []);
 
@@ -171,11 +203,13 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
     activeObserver.observe(el);
 
     // Observer 2: Render eligibility (reversible — load when near, unload when far)
+    // Keep a stable margin to avoid discontinuities in long continuous documents.
+    const rootMargin = '1800px';
     const renderObserver = new IntersectionObserver(
       ([entry]) => {
         setIsRendered(entry.isIntersecting);
       },
-      { root, rootMargin: '2000px' } // Increased for smoother scrolling
+      { root, rootMargin }
     );
     renderObserver.observe(el);
 
@@ -183,7 +217,7 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
       activeObserver.disconnect();
       renderObserver.disconnect();
     };
-  }, [pageNumber, onVisible, containerRef]);
+  }, [pageNumber, onVisible, containerRef, isPriority]);
 
   // Sprint 2.9: Camera Architecture - Physical layout dimensions are FIXED 1:1
   const width = pageDimensions.width;
@@ -236,10 +270,10 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
     >
       {isRendered ? (
         <>
-          {/* Snapshot layer: shows previous canvas while new one renders */}
-          {snapshot && (
+          {/* Sprint Perf-C: Triple Buffer — Previous snapshot (fallback layer) */}
+          {previousSnapshot && isTransitioning && (
             <img
-              src={snapshot}
+              src={previousSnapshot}
               alt=""
               style={{
                 position: 'absolute',
@@ -248,16 +282,43 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
                 width: '100%',
                 height: '100%',
                 pointerEvents: 'none',
-                zIndex: 2,
+                touchAction: 'none',
+                zIndex: 1,
+                opacity: 0.5,
+                transition: 'opacity 100ms ease-out',
+                willChange: 'opacity',
               }}
             />
           )}
+          {/* Sprint Perf-C: Triple Buffer — Current snapshot (primary freeze frame) */}
+          {currentSnapshot && isTransitioning && (
+            <img
+              src={currentSnapshot}
+              alt=""
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                pointerEvents: 'none',
+                touchAction: 'none',
+                zIndex: 2,
+                opacity: 1,
+                transition: 'opacity 100ms ease-out',
+                willChange: 'opacity',
+              }}
+            />
+          )}
+          {/* HD Canvas (base layer) */}
           <div
             ref={canvasWrapperRef}
             style={{
               transform: `scale(${inverseScale})`,
               transformOrigin: '0 0',
               width: renderWidth,
+              opacity: isTransitioning ? 0 : 1,
+              transition: 'opacity 100ms ease-in',
             }}
           >
             <Page
@@ -267,6 +328,7 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
               renderAnnotationLayer={true}
               onLoadSuccess={onLoadSuccess}
               onRenderSuccess={handleRenderSuccess}
+              loading={isPriority ? 'eager' : 'lazy'}
             />
           </div>
           {onAddAnnotation && onUpdateAnnotation && onDeleteAnnotation && (
@@ -300,7 +362,8 @@ const LazyPage = React.memo(LazyPageInner, (prev, next) => {
     && prev.themeVariant === next.themeVariant
     && prev.annotations === next.annotations
     && prev.isAnnotationMode === next.isAnnotationMode
-    && prev.annotationColor === next.annotationColor;
+    && prev.annotationColor === next.annotationColor
+    && prev.currentPage === next.currentPage; // Sprint Perf-B: Track current page changes
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -692,12 +755,18 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
   }, []); // Mounted once — no re-creation
 
   // Sprint 2.10: Pinch-to-Zoom via touch events (touchscreen)
+  // Sprint Perf-D: Use refs to avoid re-mounting handlers on every scale change
   const initialPinchDistance = useRef<number | null>(null);
   const initialPinchScale = useRef<number>(scale);
+  const scaleRefTouch = useRef(scale);
+  scaleRefTouch.current = scale;
+
+  const onScaleChangeRefTouch = useRef(onScaleChange);
+  onScaleChangeRefTouch.current = onScaleChange;
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || !onScaleChange) return;
+    if (!container) return;
 
     const getDistance = (touches: TouchList): number => {
       if (touches.length < 2) return 0;
@@ -709,7 +778,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 2) {
         initialPinchDistance.current = getDistance(e.touches);
-        initialPinchScale.current = scale;
+        initialPinchScale.current = scaleRefTouch.current;
       }
     };
 
@@ -721,7 +790,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
         const ratio = currentDistance / initialPinchDistance.current;
         const newScale = Math.max(0.1, Math.min(8.0, initialPinchScale.current * ratio));
 
-        onScaleChange(newScale);
+        onScaleChangeRefTouch.current?.(newScale);
       }
     };
 
@@ -738,7 +807,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       container.removeEventListener('touchmove', handleTouchMove);
       container.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [scale, onScaleChange]);
+  }, []); // Mounted once — no re-creation jank
 
   // Sprint 2.11: Swipe horizontal to change page (Tablets)
   // Only triggers if scroll is at boundaries (to avoid conflict with panning)
@@ -769,23 +838,21 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       const verticalThreshold = 40;
 
       if (Math.abs(dx) > horizontalThreshold && Math.abs(dy) < verticalThreshold) {
-        // TRIGGER CONDITION: Check if the document edges are visible/reached
-        const pageEl = container.querySelector(`[data-page-number="${pageNumber}"]`) as HTMLElement | null;
-        if (!pageEl) return;
+        // Sprint Perf-D: Check if SCROLL has reached container edges (works when zoomed)
+        const { scrollLeft, scrollWidth, clientWidth } = container;
+        const tolerance = 10; // 10px edge tolerance
 
-        const pageRect = pageEl.getBoundingClientRect();
-        const containerRect = container.getBoundingClientRect();
+        // Left edge: scroll is at or near 0
+        const isAtLeftEdge = scrollLeft <= tolerance;
+        // Right edge: scroll has reached the end
+        const isAtRightEdge = scrollLeft + clientWidth >= scrollWidth - tolerance;
 
-        // Tolerance of 10px for alignment
-        const isAtLeft = pageRect.left >= containerRect.left - 10;
-        const isAtRight = pageRect.right <= containerRect.right + 10;
-
-        if (dx > 0 && isAtLeft) {
-          // Swipe Right -> Previous Page
-          if (pageNumber > 1) setPageNumber(p => p - 1);
-        } else if (dx < 0 && isAtRight) {
-          // Swipe Left -> Next Page
-          if (pageNumber < numPages) setPageNumber(p => p + 1);
+        if (dx > 0 && isAtLeftEdge) {
+          // Swipe Right -> Previous Page (only if scroll is at left edge)
+          if (pageNumber > 1) setPageNumber?.(pageNumber - 1);
+        } else if (dx < 0 && isAtRightEdge) {
+          // Swipe Left -> Next Page (only if scroll is at right edge)
+          if (pageNumber < numPages) setPageNumber?.(pageNumber + 1);
         }
       }
 
@@ -857,7 +924,9 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       `}
       style={{
         backgroundColor: 'var(--lumina-app-bg)',
-        touchAction: 'pan-y pinch-zoom',
+        // Sprint Perf-D: Conditional touchAction to avoid swipe conflict
+        // PAGED: block pan-x for swipe gestures | CONTINUOUS: allow pan-x for scroll
+        touchAction: scrollMode === ScrollMode.PAGED ? 'pan-y pinch-zoom' : 'manipulation',
         WebkitOverflowScrolling: 'touch'
       }}
       onContextMenu={(e) => e.preventDefault()}
@@ -926,6 +995,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
                       onUpdateAnnotation={onUpdateAnnotation}
                       onDeleteAnnotation={onDeleteAnnotation}
                       onVisible={handlePageVisible}
+                      currentPage={pageNumber}
                     />
                   );
                 })
@@ -946,6 +1016,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
                   onDeleteAnnotation={onDeleteAnnotation}
                   onVisible={handlePageVisible}
                   forceRender={true}
+                  currentPage={pageNumber}
                 />
               )}
             </div>
