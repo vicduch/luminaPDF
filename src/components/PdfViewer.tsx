@@ -118,14 +118,14 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
   const distanceFromCurrent = currentPage ? Math.abs(pageNumber - currentPage) : Infinity;
   const isPriority = distanceFromCurrent <= 3;
 
-  // Sprint Perf-C: Triple Buffer — zero-flash zoom transitions
-  // currentSnapshot: visible during zoom (instant capture)
-  // previousSnapshot: fallback during transition
+  // No-flash zoom transitions:
+  // keep currentSnapshot visible until the latest HD render succeeds.
   const [currentSnapshot, setCurrentSnapshot] = React.useState<string | null>(null);
-  const [previousSnapshot, setPreviousSnapshot] = React.useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = React.useState(false);
   const prevScaleRef = useRef(scale);
   const prevDebouncedScaleRef = useRef(debouncedScale);
+  const latestRenderEpochRef = useRef(0);
+  const [renderEpoch, setRenderEpoch] = useState(0);
 
   // INSTANT capture on scale change (synchronous, no flash)
   useEffect(() => {
@@ -136,13 +136,11 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
           // Synchronous capture (no async delay = no flash)
           const dataURL = canvas.toDataURL('image/png', 0.92); // 92% quality for speed
 
-          // Shift: current → previous, new → current
-          if (currentSnapshot) {
-            if (previousSnapshot) URL.revokeObjectURL(previousSnapshot);
-            setPreviousSnapshot(currentSnapshot);
+          // Capture current frame as SD snapshot.
+          if (dataURL) {
+            setCurrentSnapshot(dataURL);
+            setIsTransitioning(true);
           }
-          setCurrentSnapshot(dataURL);
-          setIsTransitioning(true);
         } catch (err) {
           // Canvas might be tainted (CORS) — fallback to no snapshot
           console.warn('[LazyPage] Canvas capture failed:', err);
@@ -156,34 +154,29 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
   useEffect(() => {
     if (debouncedScale !== prevDebouncedScaleRef.current) {
       prevDebouncedScaleRef.current = debouncedScale;
-      // Transitioning flag will be cleared by handleRenderSuccess
+      latestRenderEpochRef.current += 1;
+      setRenderEpoch(latestRenderEpochRef.current);
     }
   }, [debouncedScale]);
 
-  // When HD canvas finishes rendering, clear snapshots with fade-out
+  // Clear snapshot only when the latest render epoch has completed.
   const handleRenderSuccess = useCallback(() => {
-    if (isTransitioning) {
-      // Delay cleanup to allow CSS transition to complete
-      setTimeout(() => {
+    const epochAtRenderStart = renderEpoch;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (epochAtRenderStart !== latestRenderEpochRef.current) return;
         setIsTransitioning(false);
-        if (currentSnapshot && !currentSnapshot.startsWith('blob:')) {
-          // dataURL doesn't need revoke, just clear
-          setCurrentSnapshot(null);
-        }
-        if (previousSnapshot && !previousSnapshot.startsWith('blob:')) {
-          setPreviousSnapshot(null);
-        }
-      }, 100); // Match CSS transition duration
-    }
-  }, [isTransitioning, currentSnapshot, previousSnapshot]);
+        setCurrentSnapshot(null);
+      });
+    });
+  }, [renderEpoch]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (currentSnapshot?.startsWith('blob:')) URL.revokeObjectURL(currentSnapshot);
-      if (previousSnapshot?.startsWith('blob:')) URL.revokeObjectURL(previousSnapshot);
     };
-  }, []);
+  }, [currentSnapshot]);
 
   // Combined observer: tracks both visibility (active page) and render eligibility
   useEffect(() => {
@@ -222,9 +215,24 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
   const width = pageDimensions.width;
   const height = pageDimensions.height;
 
-  // Sprint 2.10: HD Injection - Render at high-res then scale down to fit fixed container
-  const renderWidth = pageDimensions.width * debouncedScale;
-  const inverseScale = 1 / debouncedScale;
+  // Higher-quality rasterization: adaptively oversample at every zoom level.
+  const qualityBoost = useMemo(() => {
+    if (debouncedScale <= 1) return 1.22;
+    if (debouncedScale <= 2) return 1.18;
+    if (debouncedScale <= 4) return 1.14;
+    return 1.1;
+  }, [debouncedScale]);
+
+  const effectiveRenderScale = debouncedScale * qualityBoost;
+  const renderWidth = pageDimensions.width * effectiveRenderScale;
+  const inverseScale = 1 / effectiveRenderScale;
+
+  const renderDevicePixelRatio = useMemo(() => {
+    if (typeof window === 'undefined') return 1.5;
+    const baseDpr = window.devicePixelRatio || 1;
+    const adaptiveBoost = 1 + 0.3 / (1 + debouncedScale); // stronger at low zoom
+    return Math.min(2.8, Math.max(1.5, baseDpr * adaptiveBoost));
+  }, [debouncedScale]);
 
   // Theme colorization: reference the DOM-based SVG filter by ID
   const filterStyle = useMemo(() => {
@@ -269,27 +277,7 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
     >
       {isRendered ? (
         <>
-          {/* Sprint Perf-C: Triple Buffer — Previous snapshot (fallback layer) */}
-          {previousSnapshot && isTransitioning && (
-            <img
-              src={previousSnapshot}
-              alt=""
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                pointerEvents: 'none',
-                touchAction: 'none',
-                zIndex: 1,
-                opacity: 0.5,
-                transition: 'opacity 100ms ease-out',
-                willChange: 'opacity',
-              }}
-            />
-          )}
-          {/* Sprint Perf-C: Triple Buffer — Current snapshot (primary freeze frame) */}
+          {/* SD snapshot overlay while HD render is in flight */}
           {currentSnapshot && isTransitioning && (
             <img
               src={currentSnapshot}
@@ -304,7 +292,7 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
                 touchAction: 'none',
                 zIndex: 2,
                 opacity: 1,
-                transition: 'opacity 100ms ease-out',
+                transition: 'opacity 120ms ease-out',
                 willChange: 'opacity',
               }}
             />
@@ -316,13 +304,14 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
               transform: `scale(${inverseScale})`,
               transformOrigin: '0 0',
               width: renderWidth,
-              opacity: isTransitioning ? 0 : 1,
-              transition: 'opacity 100ms ease-in',
+              opacity: isTransitioning && currentSnapshot ? 0 : 1,
+              transition: 'opacity 120ms ease-in',
             }}
           >
             <Page
               pageNumber={pageNumber}
               width={renderWidth}
+              devicePixelRatio={renderDevicePixelRatio}
               renderTextLayer={true}
               renderAnnotationLayer={true}
               onLoadSuccess={onLoadSuccess}
@@ -394,8 +383,8 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     onToggleOutline
   } = props;
 
-  // Sprint 2.8: Hybrid Zoom - Debounce heavy CPU rendering
-  const debouncedScale = useDebounce(scale, 150);
+  // Keep SD snapshot visible longer; trigger HD after gesture settles.
+  const debouncedScale = useDebounce(scale, 180);
 
   // Mobile OS detection for adaptive workspace (Android/iOS/iPadOS only — not Windows touchscreens)
   const isMobileOS = useMemo(() => {
