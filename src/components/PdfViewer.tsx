@@ -559,9 +559,11 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     aimingRafRef.current = requestAnimationFrame(() => {
       aimingRafRef.current = null;
 
-      // 1. Invariant center of the workspace (center of expansion / Pivot)
+      // 1. Pivot of expansion must match CSS transformOrigin.
+      // Continuous mode: top-center pivot to preserve top reachability.
+      // Paged mode: center-center pivot.
       const Cx = content.scrollWidth / 2;
-      const Cy = content.scrollHeight / 2;
+      const Cy = scrollMode === ScrollMode.CONTINUOUS ? 0 : content.scrollHeight / 2;
 
       // 2. Current center of the viewport (Visual-CSS Center)
       const viewCenterX = scrollLeft + clientWidth / 2;
@@ -578,7 +580,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
         behavior: 'instant'
       });
     });
-  }, [scale]);
+  }, [scale, scrollMode]);
 
   // Sprint 1.1: Stable callback for page visibility tracking
   // Suppressed during programmatic navigation to avoid feedback loops
@@ -961,7 +963,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
           id="pdf-camera"
           style={{
             transform: `scale(${scale})`,
-            transformOrigin: 'center center',
+            transformOrigin: isContinuous ? 'top center' : 'center center',
             willChange: 'transform',
             display: 'inline-block',
             verticalAlign: 'top' as const
