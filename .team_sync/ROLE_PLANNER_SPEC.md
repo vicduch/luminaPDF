@@ -22,8 +22,8 @@
 - Les logs doivent être tenus dans `PLANNER_LOG.md`.
 
 ## 4. Fichiers de référence
-- **Écriture obligatoire :** `PLANNER_LOG.md`, `PROJECT_STATUS.md` (backlog).
-- **Lecture :** `PROJECT_OVERVIEW.md`, `ARCHITECTURE.md`, logs de bugs (`ZOOM_CRASH_FIX.md`, etc.).
+- **Écriture obligatoire :** `PLANNER_LOG.md`. Mise à jour du backlog dans `PROJECT_STATUS.md` (sur instruction du PM ou après analyse).
+- **Lecture :** `CLAUDE.md` (architecture et périmètre actuel), `TECH_ARCH.md`, `PROJECT_STATUS.md`, `CODER_LOG.md` et dossiers `.team_sync/phases/` pour les bugs et correctifs documentés.
 
 ## 5. Communication
 - **Rapporte à :** PM

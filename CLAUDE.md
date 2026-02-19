@@ -17,197 +17,117 @@ Set `GEMINI_API_KEY` in `.env.local` for AI chat features.
 
 ## Project Overview
 
-LuminaPDF is a high-performance web PDF reader built with React 19 + TypeScript + Vite. It uses a **Camera architecture** with GPU-accelerated CSS transforms to achieve smooth zoom and 360° panning, powered by `react-pdf` for PDF rendering with lazy loading.
-
-> **History:** The project was fully reconstructed in February 2026 ("Project Rebirth"). The former tiled rendering engine (TileLayer, RenderPool, custom Web Workers, CoordinateSystem) was abandoned entirely in favor of this simpler, more stable architecture.
+LuminaPDF is a high-performance web PDF reader built with React 19 + TypeScript + Vite. **Rendering** is done with react-pdf (PDF.js) at scale 1:1 in a fixed layout; zoom is purely visual via a single **CSS transform** applied to the whole scene (architecture "Caméra"). **Continuous scroll** shows all pages in a column; **virtualization** is handled by **LazyPage** + IntersectionObserver (rootMargin 2000px)—there is no tile engine. **Quality**: scale updates the layout in real time; **debouncedScale** (useDebounce 150ms) drives high-resolution PDF rendering for sharp output after the zoom stabilizes.
 
 ### Tech Stack
-
-- React 19, TypeScript 5.8, Vite 6
-- `react-pdf` + `pdfjs-dist` (worker loaded via CDN, not a custom legacy build)
-- Tailwind CSS v3.4.19 (local NPM + PostCSS — **not CDN**)
+- React 19, TypeScript ~5.8, Vite 6
+- PDF.js via react-pdf (standard worker, no custom tile worker)
+- Tailwind CSS 3.4 (local + PostCSS), lucide-react icons
 - Electron for desktop builds
 - Google Gemini AI (`@google/genai`), Supabase (optional cloud features)
 
-## Core Architecture: Camera Model
+## Core Architecture: Camera + Geometry/Quality Decoupling
 
-The rendering pipeline is built around a fixed "world" that a CSS camera zooms into.
+**GEOMETRY LAYER (instant, GPU)**
+- `scale` and scroll position are applied via **transform: scale(scale)** on the **#pdf-camera** container, which wraps **#pdf-workspace**.
+- The "world" (document + padding 100vh/100vw) has fixed 1:1 dimensions; zoom is purely visual (GPU).
 
-### DOM Hierarchy
+**QUALITY LAYER (async, debounced ~150ms)**
+- After geometry stabilizes, **debouncedScale** drives react-pdf page resolution (render width computed for HD injection).
+- No tile layer and no discrete LOD—just react-pdf `<Page>` at the debounced scale.
 
-```
-containerRef  (overflow: auto, h-full w-full)          ← Scroll viewport
-  └─ #pdf-camera  (transform: scale(S), origin: center center, willChange: transform)  ← Camera lens (GPU)
-      └─ #pdf-workspace  (contentRef, display: grid, padding: 100vh 100vw)             ← Fixed world (1:1)
-          └─ #pdf-scale-layer
-              └─ <Document> → <LazyPage> × N
-```
-
-**Key principles:**
-1. **Fixed World**: `#pdf-workspace` dimensions never change. Pages are sized at their original 1:1 PDF dimensions.
-2. **Optical Zoom**: The camera (`#pdf-camera`) applies a single `transform: scale(S)` — no DOM reflowing.
-3. **HD Injection**: Pages render at `width = originalWidth * debouncedScale` (high-res), then a `transform: scale(1/debouncedScale)` inverse brings them back to 1:1 size. Net result: sharp pixels inside a fixed box.
-4. **360° Panning**: `padding: 100vh 100vw` around the world creates a massive scroll canvas.
-
-### Rendering Flow
-
-```
-User zooms (wheel / button)
-  │
-  ├─► scale state updates immediately
-  │     └─► #pdf-camera transform: scale(S) → instant visual zoom (GPU, 60fps)
-  │
-  └─► useDebounce(150ms) → debouncedScale stabilizes
-        └─► LazyPage re-renders <Page width={original * debouncedScale}> → sharp HD pixels
-```
+See `.team_sync/TECH_ARCH.md` (Phase 2 Caméra) and `.team_sync/CODER_LOG.md` (Aiming Engine, centering, invariant formula) for details.
 
 ### Component Hierarchy
 
 ```
-App.tsx (root state, drag-drop, file handling, theme, reading position)
-├─ Toolbar.tsx (zoom, theme, page controls, fit-to-width)
-├─ OutlinePanel.tsx (PDF table of contents, named link resolution)
-├─ PdfViewer.tsx (Camera orchestrator: scroll, zoom, LazyPage, centring)
-│   └─ LazyPage (IntersectionObserver × 2: pre-render + page tracking)
-├─ AnnotationLayer.tsx (annotation overlay)
-├─ AiPanel.tsx (Gemini chat sidebar — modal on mobile)
-└─ RecentFiles.tsx (dashboard grid with auto-generated thumbnails)
+App.tsx (root state, drag-drop, scale, persistence)
+├─ Toolbar.tsx
+├─ PdfViewer.tsx (refs containerRef/contentRef, scale, debouncedScale, LazyPage)
+│   ├─ #pdf-camera (transform: scale)
+│   │   └─ #pdf-workspace (padding 100vh/100vw, layout grid)
+│   │       └─ Document + LazyPage (IntersectionObserver, placeholder when outside 2000px)
+│   │           └─ Page (react-pdf) + AnnotationLayer + ThemeFilterDefs (SVG feColorMatrix)
+│   └─ OutlinePanel (outside camera so position: fixed works)
+└─ AiPanel.tsx, RecentFiles.tsx, ReadingProgressBar, etc.
 ```
 
-### Key Modules
+**OutlinePanel** must stay **outside** the container that has `transform` so that `position: fixed` works (Phase 3 decision in CODER_LOG).
+
+Zoom/navigation flow:
+
+```mermaid
+flowchart LR
+  subgraph ui [UI]
+    scale[scale state]
+    scroll[scroll position]
+  end
+  subgraph camera [PdfViewer]
+    cameraLayer["#pdf-camera scale(scale)"]
+    workspace["#pdf-workspace 1:1"]
+    contentRef["contentRef scrollWidth/Height"]
+    debouncedScale[debouncedScale 150ms]
+  end
+  scale --> cameraLayer
+  scale --> debouncedScale
+  debouncedScale --> Page[react-pdf Page resolution]
+  contentRef --> center[Centering and zoom anchor math]
+  scroll --> center
+```
+
+### Key Utilities
 
 | Module | Purpose |
 |--------|---------|
-| `src/components/PdfViewer.tsx` | Camera orchestrator: zoom, centring, HD injection, lazy loading |
-| `src/utils/ThemeManager.ts` | CSS variables `--lumina-*`, theme application |
-| `src/services/storage.ts` | IndexedDB persistence, reading position, thumbnail generation (JPEG 200px) |
-| `src/services/geminiService.ts` | Google Gemini AI integration |
-| `src/hooks/useDebounce.ts` | Quality scale stabilization (only shared hook remaining) |
+| `ThemeManager.ts` | UI palettes + `getRenderPalette` for SVG feColorMatrix filter in PdfViewer |
+| `useDebounce.ts` | Geometry → quality stabilization (debouncedScale) |
+
+PDF.js worker is the standard one provided by react-pdf (GlobalWorkerOptions). Zoom state lives in App (`useState` scale); PdfViewer handles centering and scroll math. There is no `useZoom` hook, TileManager, RenderPool, or CoordinateSystem.
 
 ### Custom Hooks
 
 | Hook | Purpose |
 |------|---------|
-| `useDebounce.ts` | Debounce `scale` → `debouncedScale` (150ms) for HD injection timing |
+| `useDebounce.ts` | Stabilizes scale for PDF render quality (150ms delay) |
 
 ## Critical Patterns (MUST MAINTAIN)
 
-### 1. Camera Geometry — NEVER use `container.scrollWidth` for geometric math
+1. **Primitives in Dependencies**: Always use primitive values (`scale`, `x`, `y`) not objects in `useEffect`/`useMemo` dependencies. Objects cause infinite re-render loops.
 
-With `transform-origin: center center` + `scale(S)`, the browser clips all negative-coordinate overflow (CSS Overflow Module Level 3 §2.2). When `S > 1`, the left visual edge becomes negative and is silently cropped. This makes `container.scrollWidth` **asymmetric and unreliable**:
+2. **Zoom/Navigation Math**: The single source of truth for scroll/centering calculations is **contentRef** (the `scrollWidth`/`scrollHeight` of `#pdf-workspace`). **Never** use `container.scrollWidth` for ratios or centering—with `transform-origin: center` it is asymmetric and causes drift. See CODER_LOG "Maintenance Correction Géométrique Définitive (Aiming Engine)".
 
-```
-container.scrollWidth = W × (1 + S) / 2   for S ≥ 1
-container.scrollWidth = W                  for S < 1
-```
+3. **Debounced Quality, Live Geometry**: Pan/scroll must be instant. Only PDF render quality uses debouncedScale.
 
-**Single source of truth**: `contentRef.current.scrollWidth` — the layout width of `#pdf-workspace`, invariant under the parent's CSS transform.
+4. **Virtualization**: Driven **only** by IntersectionObserver in LazyPage (rootMargin 2000px). Do not reintroduce "shouldCleanup" logic based on distance to currentPage (see `.team_sync/phases/phase4/PHASE4B_CONTINUOUS_SCROLL_FIX.md`).
 
-**Correct formulas (use these everywhere):**
+5. **Theming**: Applied via **SVG feColorMatrix** filter (ThemeFilterDefs in PdfViewer) and CSS variables (ThemeManager). Do not use `filter: invert()`. There is no pixel recolorization in a worker (that architecture was removed).
 
-```typescript
-// Initial centring
-container.scrollTo({
-  left: content.scrollWidth / 2 - container.clientWidth / 2,
-  top:  content.scrollHeight / 2 - container.clientHeight / 2,
-  behavior: 'instant',
-});
-
-// Zoom stabilisation (invariant projection)
-const Cx = content.scrollWidth / 2;   // Fixed world centre
-const Cy = content.scrollHeight / 2;
-const viewCenterX = scrollLeft + clientWidth / 2;
-const viewCenterY = scrollTop + clientHeight / 2;
-const ratio = newScale / lastScaleRef.current;
-const newCenterX = Cx + (viewCenterX - Cx) * ratio;
-const newCenterY = Cy + (viewCenterY - Cy) * ratio;
-container.scrollTo({ left: newCenterX - clientWidth / 2, top: newCenterY - clientHeight / 2, behavior: 'instant' });
-```
-
-**Timing**: Use double `requestAnimationFrame` (not `setTimeout`) to ensure layout is computed before reading scroll dimensions:
-```typescript
-requestAnimationFrame(() => requestAnimationFrame(centerDocument));
-```
-
-### 2. HD Injection Pattern
-
-Pages must render inside a fixed-size wrapper. The inner content renders at high resolution then is visually compressed back:
-
-```tsx
-// Wrapper: fixed 1:1 world dimensions
-<div style={{ width: pageDimensions.width, height: pageDimensions.height, overflow: 'hidden' }}>
-  {/* Inner: HD render + inverse scale */}
-  <div style={{ transform: `scale(${1 / debouncedScale})`, transformOrigin: '0 0', width: renderWidth }}>
-    <Page width={renderWidth} />   {/* renderWidth = pageDimensions.width * debouncedScale */}
-  </div>
-</div>
-```
-
-### 3. Lazy Loading (LazyPage)
-
-Each page uses **two separate IntersectionObservers**:
-- **Pre-render observer**: 2000px `rootMargin` — triggers rendering before the user reaches the page
-- **Page tracking observer**: 0px margin, 50% threshold — updates the current page number in the toolbar
-
-Disconnect the pre-render observer immediately after first intersection to avoid repeated triggers.
-
-### 4. Parallel Page Dimension Loading
-
-On `Document.onLoadSuccess`, load all page viewports in parallel (never in a loop with sequential `await`):
-
-```typescript
-const results = await Promise.all(
-  Array.from({ length: pdf.numPages }, (_, i) =>
-    pdf.getPage(i + 1).then(p => ({ i: i + 1, vp: p.getViewport({ scale: 1 }) }))
-  )
-);
-// Single setState call after all promises resolve
-```
-
-### 5. Fixed Panels Outside the Camera
-
-Components with `position: fixed` (`OutlinePanel`, `AiPanel`) **must be rendered outside `#pdf-camera`**. CSS `transform` creates a new stacking context that breaks `position: fixed`.
-
-### 6. Primitives in React Dependencies
-
-Always pass primitive values (`scale`, `x`, `y`) — never objects — into `useEffect`/`useMemo` dependency arrays to avoid infinite re-render loops.
-
-### 7. Tailwind: Local NPM Build Only
-
-Tailwind is configured locally via PostCSS (`tailwind.config.js`, `postcss.config.js`). Do NOT reintroduce CDN scripts or importmap entries in `index.html`.
-
-## Theming Architecture
-
-Themes are applied via **CSS custom properties** injected at the `:root` level by `ThemeManager.ts`.
-
-- Variables follow the `--lumina-*` naming convention (`--lumina-bg`, `--lumina-text`, `--lumina-bg-secondary`, etc.)
-- UI components use only `.glass-premium`, `.dropdown-premium`, `.btn-action` utility classes — no hardcoded hex colors
-- PDF page background inversion (for dark themes) uses an **SVG filter** approach. When a filter is active, the `LazyPage` container background is forced to white so the inversion maps correctly to the target paper color
-- `color-mix(in srgb, var(--lumina-bg-secondary), transparent 25%)` is used for glassmorphism effects
+6. **PDF.js Worker**: Use the standard worker via react-pdf (e.g. `pdfjs-dist/build/pdf.worker.min.mjs?url`); no custom tile worker.
 
 ## Coordinate System
 
-- **World Space (1:1)**: Fixed DOM layout dimensions of the PDF pages and workspace, before any CSS transform. `contentRef.current.scrollWidth/Height` is the authoritative measurement.
-- **Screen Space**: What the user sees after the camera `scale(S)` transform is applied.
-- **Scroll Space**: The `scrollLeft`/`scrollTop` values of `containerRef`. Asymmetric when `S > 1` due to negative overflow clipping — do NOT use for geometric centre calculations.
+- **World**: `#pdf-workspace` at 1:1 dimensions (document + padding).
+- **Screen**: Viewport of the scroll container.
+- **Zoom**: CSS `scale()` on `#pdf-camera`.
 
-## Lazy Loading & Performance
+Centering and zoom-anchor math use **contentRef** (`content.scrollWidth`/`scrollHeight`) and the invariant projection (world center as pivot).
 
-- `IntersectionObserver` with `rootMargin: '2000px'` pre-renders pages before they enter the viewport
-- `useDebounce(scale, 150)` prevents HD re-renders during active zoom interaction
-- `Promise.all` parallelises PDF page dimension queries on document open
-- `useCallback` on `handlePageVisible` prevents IntersectionObserver recreation on every render
+## Theming Architecture
 
-## Storage & Persistence
+9 themes (Light, Sepia, Dark, Midnight, Blue Night, Forest, Solarized, OLED, eInk) × 2 variants (Light/Dark) = 18 configurations.
 
-`src/services/storage.ts` uses **IndexedDB** for:
-- Reading position (page + zoom level) — restored on file reopen
-- Auto-generated JPEG thumbnails of page 1 (200px wide) — shown in the Recent Files dashboard
+PDF colorization: **feColorMatrix** (linear interpolation fg/bg) in the DOM via ThemeFilterDefs. UI uses CSS variables `--lumina-*` from ThemeManager. No worker → ImageBitmap pipeline.
 
-## Known Current Issues / Future Work
+## Worker Communication
 
-- **Dual Transform architecture** (recommended by QA Audit, not yet implemented): Replace the current `transform-origin: center center` camera with a fixed 10000×10000px scroll canvas + `transform-origin: 0 0`. This would eliminate the asymmetric overflow clipping problem permanently, simplify all centring math, and enable true symmetric 360° panning at all zoom levels.
-- **Mobile touch gestures**: Pinch-to-zoom is not implemented. `touch-action: pan-y` enables native vertical scroll on tablets.
-- **Multi-panel layout**: AI panel and Outline panel cannot be shown simultaneously on large screens (backlog).
-- **Cloud annotation sync**: Supabase integration exists but cloud sync is not yet wired up.
-- **Thumbnail compression**: Thumbnail generation is functional but no active compression is applied.
+PDF.js uses its standard worker (configured via react-pdf / GlobalWorkerOptions). There is no custom protocol (renderTile, cancelJob, ImageBitmap) in the current codebase.
+
+## Project Status & Known Issues
+
+**Context** (see `.team_sync/PROJECT_STATUS.md`): Project is a "Reconstruction (Rebirth)" started 2026-02-05. Phases 0–4 are **stable** (base display, continuous scroll + lazy, Camera architecture, annotations & outline, responsive & polish). **Phase 4B**: PWA/tablet optimizations (viewport dvh, manifest, continuous-scroll fix for 350+ pages)—implementation done; manual validation on Xiaomi Pad 6 pending.
+
+**Known current issues**
+- PWA tablet validation (Phase 4B) awaiting manual tests.
+- Possible re-centering after rotation + manual zoom (workaround: Fit button).
+
+**Backlog** (see `.team_sync/PROJECT_STATUS.md`): Thumbnail size optimization, multi-panel (AI + Outline on wide screens), cloud sync for annotations.

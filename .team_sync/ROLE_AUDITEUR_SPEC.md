@@ -20,7 +20,7 @@
 
 ## 4. Fichiers de référence
 - **Écriture obligatoire :** `AUDITEUR_LOG.md`
-- **Lecture :** Fichiers `.md` de bugs (ex: `ZOOM_CRASH_FIX.md`), logs du Coder.
+- **Lecture :** `PROJECT_STATUS.md`, `CODER_LOG.md`, dossiers `.team_sync/phases/` (correctifs et validations), `KNOWLEDGE_BASE.md`. Fichiers de bugs ou specs dans `.team_sync` selon le contexte.
 
 ## 5. Communication
 - **Rapporte à :** PM

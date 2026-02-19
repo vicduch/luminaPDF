@@ -229,7 +229,7 @@ export const generateThumbnail = async (file: File, maxWidth = 200): Promise<str
         const ctx = canvas.getContext('2d');
         if (!ctx) return undefined;
 
-        await page.render({ canvasContext: ctx, viewport }).promise;
+        await page.render({ canvas, canvasContext: ctx, viewport }).promise;
         const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
 
         pdf.destroy();

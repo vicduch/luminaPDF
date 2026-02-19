@@ -21,11 +21,11 @@
 
 ## 4. Fichiers de référence
 - **Écriture obligatoire :** `ECLAIREUR_LOG.md`
-- **Lecture sur instruction du PM :** `package.json`, arborescence racine.
+- **Lecture sur instruction du PM :** `package.json`, arborescence du dépôt. Pour l’état actuel de la structure (post-Rebirth), s’appuyer sur `CLAUDE.md` et le contenu de `src/` (composants, hooks, utils, services).
 
 ## 5. Communication
 - **Rapporte à :** PM
 - **Escalade vers :** PM
 
 ## 6. Format de log attendu
-(Conforme au standard défini dans AGENT_FRAMEWORK_RECOVERY.md)
+- Consigner l’arborescence explorée, les fichiers suspects (orphelins, redondants), et la cohérence `package.json` / imports. Référence structure actuelle : `CLAUDE.md`.

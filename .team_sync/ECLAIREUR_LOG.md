@@ -1,6 +1,10 @@
-# ECLAIREUR_LOG - 2026-02-05
+# ECLAIREUR_LOG
 
-## 1. Arborescence Simplifiée
+**Note (2026-02-19, PM) :** Le rapport ci-dessous date d’avant la migration vers `src/`. La structure actuelle est centralisée dans `src/` (composants, hooks, utils, services, etc.) ; voir `CLAUDE.md` pour la hiérarchie et les modules en usage.
+
+---
+
+## 2026-02-05 - Arborescence Simplifiée (état pré-migration)
 ```text
 .
 ├── components/          # Composants React (Toolbar, PdfViewer, AiPanel...)

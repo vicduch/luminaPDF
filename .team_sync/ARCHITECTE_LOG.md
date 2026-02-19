@@ -1,5 +1,9 @@
 # ARCHITECTE_LOG
 
+**Note (2026-02-19, PM) :** Les entrées historiques ci-dessous restent pour traçabilité. Après Rebirth, la règle de navigation en vigueur est celle du CODER_LOG « Correction Géométrique Définitive (Aiming Engine) » : **contentRef** (scrollWidth/scrollHeight du `#pdf-workspace`) est la source de vérité pour centrage et ancrage de zoom ; **ne jamais** utiliser `container.scrollWidth` pour ces calculs. Voir `CLAUDE.md` (Critical Patterns).
+
+---
+
 ## 2026-02-05 - Analyse Structurelle et Plan de Nettoyage
 (Contenu précédent conservé par référence)
 

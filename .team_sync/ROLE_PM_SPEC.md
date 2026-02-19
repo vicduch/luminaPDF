@@ -14,7 +14,7 @@
 - Lire les logs des agents pour suivre l'avancement
 - Arbitrer les décisions techniques (avec validation utilisateur)
 - Mettre à jour `PROJECT_STATUS.md` et `DECISIONS.md`
-- Gérer la transition Phase 1 → Phase 2
+- Maintenir la cohérence des phases (voir `PROJECT_STATUS.md`) et gérer les transitions (ex. Phase 4B → prochaine phase)
 
 ### Hors périmètre :
 - Ne jamais coder
@@ -35,7 +35,9 @@
   - `DECISIONS.md`
 - **Lecture régulière :**
   - Tous les `[NOM]_LOG.md` des agents actifs
+  - `PROJECT_STATUS.md` (phases, backlog)
   - `KNOWLEDGE_BASE.md` (pour éviter les erreurs répétées)
+  - `CLAUDE.md` (référence architecture et patterns pour aligner les prompts)
 
 ## 5. Communication
 - **Rapporte à :** Utilisateur

@@ -118,48 +118,59 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
   const distanceFromCurrent = currentPage ? Math.abs(pageNumber - currentPage) : Infinity;
   const isPriority = distanceFromCurrent <= 3;
 
-  // No-flash zoom transitions:
-  // keep currentSnapshot visible until the latest HD render succeeds.
-  const [currentSnapshot, setCurrentSnapshot] = React.useState<string | null>(null);
-  const [isSnapshotReady, setIsSnapshotReady] = React.useState(false);
-  const [isTransitioning, setIsTransitioning] = React.useState(false);
-  const prevScaleRef = useRef(scale);
-  const prevDebouncedScaleRef = useRef(debouncedScale);
+  // DPR-based quality: keep <Page width> constant (= pageDimensions.width) and vary
+  // devicePixelRatio to control render resolution. This means react-pdf's pageKey never
+  // changes on zoom → Canvas is never unmounted → no flash, no snapshot needed.
+  // The canvas element persists and re-renders in place; visibility:hidden during render
+  // is covered by a lightweight same-size clone.
+  const [committedScale, setCommittedScale] = useState(debouncedScale);
+  const snapshotContainerRef = useRef<HTMLDivElement>(null);
+  const hasSnapshotRef = useRef(false);
   const latestRenderEpochRef = useRef(0);
   const [renderEpoch, setRenderEpoch] = useState(0);
 
-  // INSTANT capture on scale change (synchronous, no flash)
-  useEffect(() => {
-    if (scale !== prevScaleRef.current && isRendered) {
-      const canvas = canvasWrapperRef.current?.querySelector('canvas');
-      if (canvas) {
-        try {
-          // Synchronous capture (no async delay = no flash)
-          const dataURL = canvas.toDataURL('image/png', 0.92); // 92% quality for speed
+  // When debouncedScale changes, capture the canvas (still valid — same element, not
+  // unmounted) in useLayoutEffect BEFORE react-pdf's useEffect clears it.
+  useLayoutEffect(() => {
+    if (debouncedScale === committedScale) return;
+    if (!isRendered) {
+      setCommittedScale(debouncedScale);
+      return;
+    }
 
-          // Capture current frame as SD snapshot.
-          if (dataURL) {
-            setIsSnapshotReady(false);
-            setCurrentSnapshot(dataURL);
-            setIsTransitioning(true);
-          }
-        } catch (err) {
-          // Canvas might be tainted (CORS) — fallback to no snapshot
-          console.warn('[LazyPage] Canvas capture failed:', err);
-        }
+    const canvas = canvasWrapperRef.current?.querySelector('canvas') as HTMLCanvasElement | null;
+    const container = snapshotContainerRef.current;
+
+    if (canvas && container && canvas.width > 0 && canvas.style.visibility !== 'hidden') {
+      try {
+        // Clone the canvas pixel-perfectly: same element dimensions, same CSS size.
+        // Since width={pageDimensions.width} is constant, CSS dimensions never change
+        // between old and new renders → zero sub-pixel shift.
+        const clone = document.createElement('canvas');
+        clone.width = canvas.width;
+        clone.height = canvas.height;
+        clone.style.cssText = canvas.style.cssText;
+        clone.style.position = 'absolute';
+        clone.style.top = '0';
+        clone.style.left = '0';
+        clone.style.zIndex = '2';
+        clone.style.pointerEvents = 'none';
+
+        const ctx = clone.getContext('2d');
+        ctx?.drawImage(canvas, 0, 0);
+
+        container.innerHTML = '';
+        container.appendChild(clone);
+        hasSnapshotRef.current = true;
+      } catch (err) {
+        console.warn('[LazyPage] Canvas capture failed:', err);
       }
-      prevScaleRef.current = scale;
     }
-  }, [scale, isRendered]);
 
-  // Trigger HD re-render on debouncedScale stabilization
-  useEffect(() => {
-    if (debouncedScale !== prevDebouncedScaleRef.current) {
-      prevDebouncedScaleRef.current = debouncedScale;
-      latestRenderEpochRef.current += 1;
-      setRenderEpoch(latestRenderEpochRef.current);
-    }
-  }, [debouncedScale]);
+    latestRenderEpochRef.current += 1;
+    setRenderEpoch(latestRenderEpochRef.current);
+    setCommittedScale(debouncedScale);
+  }, [debouncedScale, committedScale, isRendered]);
 
   // Clear snapshot only when the latest render epoch has completed.
   const handleRenderSuccess = useCallback(() => {
@@ -167,19 +178,13 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         if (epochAtRenderStart !== latestRenderEpochRef.current) return;
-        setIsTransitioning(false);
-        setIsSnapshotReady(false);
-        setCurrentSnapshot(null);
+        if (snapshotContainerRef.current) {
+          snapshotContainerRef.current.innerHTML = '';
+        }
+        hasSnapshotRef.current = false;
       });
     });
   }, [renderEpoch]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (currentSnapshot?.startsWith('blob:')) URL.revokeObjectURL(currentSnapshot);
-    };
-  }, [currentSnapshot]);
 
   // Combined observer: tracks both visibility (active page) and render eligibility
   useEffect(() => {
@@ -218,24 +223,15 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
   const width = pageDimensions.width;
   const height = pageDimensions.height;
 
-  // Higher-quality rasterization: adaptively oversample at every zoom level.
-  const qualityBoost = useMemo(() => {
-    if (debouncedScale <= 1) return 1.22;
-    if (debouncedScale <= 2) return 1.18;
-    if (debouncedScale <= 4) return 1.14;
-    return 1.1;
-  }, [debouncedScale]);
-
-  const effectiveRenderScale = debouncedScale * qualityBoost;
-  const renderWidth = pageDimensions.width * effectiveRenderScale;
-  const inverseScale = 1 / effectiveRenderScale;
-
-  const renderDevicePixelRatio = useMemo(() => {
-    if (typeof window === 'undefined') return 1.5;
-    const baseDpr = window.devicePixelRatio || 1;
-    const adaptiveBoost = 1 + 0.3 / (1 + debouncedScale); // stronger at low zoom
-    return Math.min(2.8, Math.max(1.5, baseDpr * adaptiveBoost));
-  }, [debouncedScale]);
+  // DPR-based quality control: resolution = pageDimensions.width * qualityDpr.
+  // Higher committedScale → higher DPR → more canvas pixels → sharper text.
+  // Page width stays constant → react-pdf pageKey stays constant → no canvas remount.
+  const qualityDpr = useMemo(() => {
+    const boost = committedScale <= 1 ? 1.22 : committedScale <= 2 ? 1.18 : committedScale <= 4 ? 1.14 : 1.1;
+    const baseDpr = (typeof window !== 'undefined' ? window.devicePixelRatio : 1) || 1;
+    const adaptiveBoost = 1 + 0.3 / (1 + committedScale);
+    return committedScale * boost * Math.min(2.8, Math.max(1.5, baseDpr * adaptiveBoost));
+  }, [committedScale]);
 
   // Theme colorization: reference the DOM-based SVG filter by ID
   const filterStyle = useMemo(() => {
@@ -281,42 +277,14 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
       {isRendered ? (
         <>
           {/* SD snapshot overlay while HD render is in flight */}
-          {currentSnapshot && isTransitioning && (
-            <img
-              src={currentSnapshot}
-              onLoad={() => setIsSnapshotReady(true)}
-              onError={() => setIsSnapshotReady(false)}
-              alt=""
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                pointerEvents: 'none',
-                touchAction: 'none',
-                zIndex: 2,
-                opacity: 1,
-                transition: 'opacity 120ms ease-out',
-                willChange: 'opacity',
-              }}
-            />
-          )}
-          {/* HD Canvas (base layer) */}
-          <div
-            ref={canvasWrapperRef}
-            style={{
-              transform: `scale(${inverseScale})`,
-              transformOrigin: '0 0',
-              width: renderWidth,
-              opacity: isTransitioning && currentSnapshot && isSnapshotReady ? 0 : 1,
-              transition: 'opacity 120ms ease-in',
-            }}
-          >
+          <div ref={snapshotContainerRef} />
+          
+          {/* HD Canvas — width stays constant, quality via devicePixelRatio */}
+          <div ref={canvasWrapperRef}>
             <Page
               pageNumber={pageNumber}
-              width={renderWidth}
-              devicePixelRatio={renderDevicePixelRatio}
+              width={pageDimensions.width}
+              devicePixelRatio={qualityDpr}
               renderTextLayer={true}
               renderAnnotationLayer={true}
               onLoadSuccess={onLoadSuccess}
@@ -416,6 +384,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const cameraRef = useRef<HTMLDivElement>(null);
   const [pageDimensions, setPageDimensionsInternal] = useState({ width: 612, height: 792 });
   const [allPagesDimensions, setAllPagesDimensions] = useState<Map<number, { width: number, height: number }>>(new Map());
   const [containerDims, setContainerDims] = useState({ width: 0, height: 0 });
@@ -618,8 +587,11 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     }
   }, [onLoadSuccess, onPageDimensions]);
 
-  // Instantly center a page vertically in the viewport (DOM-based, zero drift)
+  // Navigate to a page: works in both continuous (scroll) and paged (swap) modes.
   const scrollToPage = useCallback((targetPage: number) => {
+    // Always update the page number state — essential for paged mode and toolbar display
+    if (setPageNumber) setPageNumber(targetPage);
+
     const container = containerRef.current;
     if (!container) return;
 
@@ -627,25 +599,20 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     navLockRef.current = true;
     setTimeout(() => { navLockRef.current = false; }, 300);
 
-    // Find the actual page element in the DOM
+    // In paged mode the target page will be rendered by the state update above
     const pageEl = container.querySelector(`[data-page-number="${targetPage}"]`) as HTMLElement | null;
     if (!pageEl) return;
 
-    // Get the page's position relative to the scrollable container
-    // We need offsetTop relative to the scroll content, not the viewport
     const pageRect = pageEl.getBoundingClientRect();
     const containerRect = container.getBoundingClientRect();
 
-    // Current scroll + element position relative to container = absolute position in scroll space
     const pageTopInScroll = container.scrollTop + (pageRect.top - containerRect.top);
     const pageHeightInScroll = pageRect.height;
     const viewportHeight = container.clientHeight;
 
-    // Center: scroll so page middle = viewport middle
     const targetTop = pageTopInScroll - (viewportHeight - pageHeightInScroll) / 2;
-
     container.scrollTop = targetTop;
-  }, []);
+  }, [setPageNumber]);
 
   useImperativeHandle(ref, () => ({
     containerRef,
@@ -691,25 +658,20 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       // 1. Try #page=N format
       const pageMatch = href.match(/page=(\d+)/);
       if (pageMatch) {
-        const targetPn = parseInt(pageMatch[1], 10);
-        scrollToPage(targetPn);
-        if (setPageNumber) setPageNumber(targetPn);
+        scrollToPage(parseInt(pageMatch[1], 10));
         return;
       }
 
       // 2. Try named destination via PDF.js API
-      const destName = decodeURIComponent(href.substring(1)); // remove #
+      const destName = decodeURIComponent(href.substring(1));
       if (!destName || !pdfDocRef.current) return;
 
       try {
         const pdf = pdfDocRef.current;
         const dest = await pdf.getDestination(destName);
         if (dest) {
-          const ref = dest[0]; // First element is the page reference
-          const pageIndex = await pdf.getPageIndex(ref);
-          const targetPn = pageIndex + 1; // PDF.js uses 0-based index
-          scrollToPage(targetPn);
-          if (setPageNumber) setPageNumber(targetPn);
+          const pageIndex = await pdf.getPageIndex(dest[0]);
+          scrollToPage(pageIndex + 1);
         }
       } catch (err) {
         console.warn('[PdfViewer] Failed to resolve destination:', destName, err);
@@ -721,37 +683,88 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
   }, [scrollToPage, setPageNumber]);
 
   // Sprint 2.9: Pinch-to-Zoom via wheel event with ctrlKey
-  // Uses a ref for scale so the handler is mounted once (no re-creation jitter)
+  // 120fps optimization: write directly to DOM during gesture, commit to React after.
   const scaleRef = useRef(scale);
   scaleRef.current = scale;
 
   const onScaleChangeRef = useRef(onScaleChange);
   onScaleChangeRef.current = onScaleChange;
 
+  const scrollModeRef = useRef(scrollMode);
+  scrollModeRef.current = scrollMode;
+
+  const wheelCommitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Inline aiming: correct scroll position to keep viewport center stable after scale change.
+  // Runs synchronously inside gesture handlers to avoid 1-frame drift.
+  // Also syncs lastScaleRef so the useLayoutEffect Aiming Engine skips (no-op) on React commit.
+  const applyInlineAiming = useCallback((oldScale: number, newScale: number) => {
+    const container = containerRef.current;
+    const content = contentRef.current;
+    if (!container || !content) return;
+
+    lastScaleRef.current = newScale;
+
+    const { scrollLeft, scrollTop, clientWidth, clientHeight } = container;
+    const ratio = newScale / oldScale;
+
+    const Cx = content.scrollWidth / 2;
+    const Cy = scrollModeRef.current === ScrollMode.CONTINUOUS ? 0 : content.scrollHeight / 2;
+
+    const viewCenterX = scrollLeft + clientWidth / 2;
+    const viewCenterY = scrollTop + clientHeight / 2;
+
+    const newCenterX = Cx + (viewCenterX - Cx) * ratio;
+    const newCenterY = Cy + (viewCenterY - Cy) * ratio;
+
+    container.scrollTo({
+      left: newCenterX - clientWidth / 2,
+      top: newCenterY - clientHeight / 2,
+      behavior: 'instant'
+    });
+  }, []);
+
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
     const handleWheel = (e: WheelEvent) => {
-      // Pinch-to-zoom on touchpad sends wheel events with ctrlKey=true
       if (e.ctrlKey) {
         e.preventDefault();
 
-        // Calculate zoom factor (higher multiplier = faster zoom)
         const zoomFactor = 1 - e.deltaY * 0.003;
-        const newScale = Math.max(0.1, Math.min(8.0, scaleRef.current * zoomFactor));
+        const oldScale = scaleRef.current;
+        const newScale = Math.max(0.1, Math.min(8.0, oldScale * zoomFactor));
 
-        onScaleChangeRef.current?.(newScale);
+        // Direct DOM write — bypasses React reconciliation entirely
+        scaleRef.current = newScale;
+        if (cameraRef.current) {
+          cameraRef.current.style.transform = `scale(${newScale})`;
+        }
+        applyInlineAiming(oldScale, newScale);
+
+        // Debounced commit: sync React state after gesture settles (80ms)
+        if (wheelCommitTimerRef.current !== null) {
+          clearTimeout(wheelCommitTimerRef.current);
+        }
+        wheelCommitTimerRef.current = setTimeout(() => {
+          wheelCommitTimerRef.current = null;
+          onScaleChangeRef.current?.(scaleRef.current);
+        }, 80);
       }
     };
 
-    // passive: false is required to allow preventDefault
     container.addEventListener('wheel', handleWheel, { passive: false });
-    return () => container.removeEventListener('wheel', handleWheel);
-  }, []); // Mounted once — no re-creation
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+      if (wheelCommitTimerRef.current !== null) {
+        clearTimeout(wheelCommitTimerRef.current);
+      }
+    };
+  }, [applyInlineAiming]); // Mounted once — applyInlineAiming is stable (useCallback with no deps)
 
   // Sprint 2.10: Pinch-to-Zoom via touch events (touchscreen)
-  // Sprint Perf-D: Use refs to avoid re-mounting handlers on every scale change
+  // 120fps optimization: direct DOM during pinch, commit on touchEnd.
   const initialPinchDistance = useRef<number | null>(null);
   const initialPinchScale = useRef<number>(scale);
   const scaleRefTouch = useRef(scale);
@@ -784,13 +797,24 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
 
         const currentDistance = getDistance(e.touches);
         const ratio = currentDistance / initialPinchDistance.current;
+        const oldScale = scaleRefTouch.current;
         const newScale = Math.max(0.1, Math.min(8.0, initialPinchScale.current * ratio));
 
-        onScaleChangeRefTouch.current?.(newScale);
+        // Direct DOM write — bypasses React reconciliation entirely
+        scaleRefTouch.current = newScale;
+        scaleRef.current = newScale;
+        if (cameraRef.current) {
+          cameraRef.current.style.transform = `scale(${newScale})`;
+        }
+        applyInlineAiming(oldScale, newScale);
       }
     };
 
     const handleTouchEnd = () => {
+      if (initialPinchDistance.current !== null) {
+        // Commit final scale to React state once at gesture end
+        onScaleChangeRefTouch.current?.(scaleRefTouch.current);
+      }
       initialPinchDistance.current = null;
     };
 
@@ -803,7 +827,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       container.removeEventListener('touchmove', handleTouchMove);
       container.removeEventListener('touchend', handleTouchEnd);
     };
-  }, []); // Mounted once — no re-creation jank
+  }, [applyInlineAiming]); // Mounted once
 
   // Sprint 2.11: Swipe horizontal to change page (Tablets)
   // Only triggers if scroll is at boundaries (to avoid conflict with panning)
@@ -945,6 +969,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       <Document
         file={file}
         onLoadSuccess={handleDocumentLoad}
+        onItemClick={({ pageNumber: pg }: { pageNumber: number }) => scrollToPage(pg)}
         loading={<div className="p-10 text-gray-500 font-medium">Chargement du document...</div>}
         error={<div className="p-10 text-red-500 font-medium">Erreur lors du chargement du PDF</div>}
       >
@@ -960,6 +985,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
         />
 
         <div
+          ref={cameraRef}
           id="pdf-camera"
           style={{
             transform: `scale(${scale})`,

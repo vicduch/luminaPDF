@@ -1,5 +1,9 @@
 # PLANNER_LOG.md
 
+**Note (2026-02-19, PM) :** Les analyses ci-dessous concernent l’ancien moteur (tuiles, LOD, TileManager, etc.). Le projet a depuis subi une reconstruction (Rebirth) : architecture actuelle décrite dans `CLAUDE.md` et `TECH_ARCH.md` ; backlog et prochaines étapes dans `PROJECT_STATUS.md`.
+
+---
+
 ## 2026-02-05 - Analyse initiale et priorisation Sprint 2.2
 
 ### Contexte

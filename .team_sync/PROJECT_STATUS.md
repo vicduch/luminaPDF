@@ -14,6 +14,7 @@
 - [x] Phase 2 : Architecture Caméra & Navigation 360° (Stable)
 - [x] Phase 3 : Annotations & Sommaire (Stable)
 - [x] Phase 4 : Rendu Responsive & Polissage UX (Stable)
+- [ ] Phase 4B : PWA/tablette (viewport dvh, manifest, fix scroll continu 350+ pages) — implémenté, validation manuelle Xiaomi Pad 6 en attente
 
 ## Roadmap
 
