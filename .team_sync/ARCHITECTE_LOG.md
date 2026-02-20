@@ -52,3 +52,52 @@ L'audit montre que les ratios focalaux calculés sur le contenu (1:1) sont erron
 
 ### Directive pour le Coder
 Dans `PdfViewer.tsx`, modifier le `useLayoutEffect` de stabilisation. Capturer le ratio focal (basé sur `container.scrollWidth`) au moment où l'utilisateur déclenche le zoom (ou via une variable de state intermédiaire) et restaurer la position dans l'effet en utilisant la nouvelle valeur de `container.scrollWidth`. S'assurer que `transform-origin` reste à `center center`.
+
+---
+
+## 2026-02-19 — Phase 5 : Rendu Seamless & Performance 120fps
+
+### Contexte
+L'utilisateur signalait un flash blanc/disparition du texte à chaque changement de zoom. L'objectif était d'atteindre un comportement identique au lecteur PDF de Google Drive : amélioration progressive de la qualité sans aucune transition visible.
+
+### Diagnostic Architectural
+
+**Cause racine du flash :** react-pdf keye son composant Canvas avec `pageKey = \`${pageIndex}@${scale}/${rotate}\``. Modifier `width` dans `<Page>` recalcule `scale` en interne → `pageKey` change → Canvas DOM est **détruit et recréé** (unmount/remount). Pendant le remount, `Canvas.js` applique `visibility: hidden` → flash blanc.
+
+**Tentatives échouées :**
+1. Snapshot via `canvas.toDataURL()` + `<img>` overlay avec transition CSS → code mort, snapshot jamais capturé.
+2. Snapshot via `drawImage` + clone du wrapper CSS (mêmes transforms) → sub-pixel shift entre l'ancien et le nouveau transform → "glitch des lettres".
+3. Snapshot via `drawImage` avec redimensionnement (haute-res → basse-res flat canvas) → artefacts d'anti-aliasing, texte flou/glitchy.
+
+### Solution Retenue : DPR-based Quality
+
+**Principe :** `<Page width>` est **constant** (`pageDimensions.width`). La résolution est contrôlée uniquement par `devicePixelRatio`. Ainsi `pageKey` ne change jamais → le Canvas DOM **persiste**.
+
+```
+qualityDpr = committedScale × qualityBoost × clamp(1.5, 2.8, baseDpr × adaptiveBoost)
+```
+
+**Snapshot simplifié :** Comme le Canvas persiste (même élément DOM), le clone copie les pixels à l'identique (`drawImage(canvas, 0, 0)`) avec le même `style.cssText`. Zéro redimensionnement, zéro transform, zéro shift.
+
+### Extension : 120fps Gesture Rendering
+
+**Problème :** Les `setState(scale)` fréquents pendant un geste wheel/pinch causent une reconciliation React à chaque frame → jank.
+
+**Solution :** Pendant le geste actif, le `transform` du `#pdf-camera` est écrit directement dans le DOM (`cameraRef.current.style.transform`). React state est synchronisé uniquement en fin de geste :
+- **Wheel** : debounce 80ms → `onScaleChange(scaleRef.current)`
+- **Touch** : `touchend` → `onScaleChange(scaleRefTouch.current)`
+
+La correction de scroll (aiming) est aussi calculée inline dans le handler de geste via `applyInlineAiming`, sans passer par React.
+
+### Liens Internes PDF
+
+Avec la virtualisation (seules les pages visibles sont dans le DOM), react-pdf ne peut pas résoudre les liens internes. Solution :
+- `<Document onItemClick>` intercepte les clics et appelle `scrollToPage()`.
+- `scrollToPage()` appelle `setPageNumber()` (mode paginé) et/ou scroll DOM (mode continu).
+
+### Validation
+- ✅ Zoom sans flash (transitions invisibles)
+- ✅ 120fps pendant les gestes
+- ✅ Zéro glitch/shift sub-pixel
+- ✅ Liens internes fonctionnels en mode virtualisé
+- ✅ Build production OK, TypeScript clean

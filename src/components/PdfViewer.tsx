@@ -278,7 +278,7 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
         <>
           {/* SD snapshot overlay while HD render is in flight */}
           <div ref={snapshotContainerRef} />
-          
+
           {/* HD Canvas — width stays constant, quality via devicePixelRatio */}
           <div ref={canvasWrapperRef}>
             <Page
@@ -412,25 +412,27 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
 
       // If restoring a reading position in continuous mode, scroll to that page
       if (scrollMode === ScrollMode.CONTINUOUS && pageNumber > 1) {
-        const paddingTop = container.clientHeight;
         const gap = 32; // gap-8 = 2rem = 32px
-        let targetTop = paddingTop;
+        let targetTop = 0;
 
         for (let i = 1; i < pageNumber; i++) {
           const dims = allPagesDimensions.get(i);
           if (dims) targetTop += dims.height + gap;
         }
 
+        // Apply scale since the content is scaled
+        targetTop *= scale;
+
         container.scrollTo({
-          left: (content.scrollWidth / 2) - (container.clientWidth / 2),
-          top: targetTop,
+          left: (container.clientWidth / 2) + (content.scrollWidth * scale / 2),
+          top: (container.clientHeight) + targetTop,
           behavior: 'instant'
         });
       } else {
-        // Default: center on the workspace geometric center
+        // Default: center on the workspace geometric center using native dimensions plus the padding offset
         container.scrollTo({
-          left: (content.scrollWidth / 2) - (container.clientWidth / 2),
-          top: (content.scrollHeight / 2) - (container.clientHeight / 2),
+          left: (container.clientWidth / 2) + (content.scrollWidth * scale / 2),
+          top: (container.clientHeight / 2) + (content.scrollHeight * scale / 2),
           behavior: 'instant'
         });
       }
@@ -476,17 +478,17 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
           }
         }
 
-        // Center horizontally, scroll to page top vertically
+        // Center horizontally, scroll to page top vertically. Padding is top offset
         container.scrollTo({
-          left: (content.scrollWidth / 2) - (container.clientWidth / 2),
-          top: targetTop,
+          left: (container.clientWidth / 2) + (content.scrollWidth * scale / 2),
+          top: (container.clientHeight) + targetTop,
           behavior: 'instant'
         });
       } else if (scrollMode === ScrollMode.PAGED) {
-        // When switching to paged mode, center the document
+        // When switching to paged mode, center the document using padding offset
         container.scrollTo({
-          left: (content.scrollWidth / 2) - (container.clientWidth / 2),
-          top: (content.scrollHeight / 2) - (container.clientHeight / 2),
+          left: (container.clientWidth / 2) + (content.scrollWidth * scale / 2),
+          top: (container.clientHeight / 2) + (content.scrollHeight * scale / 2),
           behavior: 'instant'
         });
       }
@@ -528,24 +530,23 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     aimingRafRef.current = requestAnimationFrame(() => {
       aimingRafRef.current = null;
 
-      // 1. Pivot of expansion must match CSS transformOrigin.
-      // Continuous mode: top-center pivot to preserve top reachability.
-      // Paged mode: center-center pivot.
-      const Cx = content.scrollWidth / 2;
-      const Cy = scrollMode === ScrollMode.CONTINUOUS ? 0 : content.scrollHeight / 2;
+      // 1. Pivot of expansion is physical origin: 0 0. 
+      // This is shifted by the #pdf-spacing-wrapper padding: container.clientWidth and container.clientHeight
+      const focalOriginX = container.clientWidth;
+      const focalOriginY = container.clientHeight;
 
-      // 2. Current center of the viewport (Visual-CSS Center)
+      // 2. We find the distance between the visual center and the focal origin
       const viewCenterX = scrollLeft + clientWidth / 2;
       const viewCenterY = scrollTop + clientHeight / 2;
 
-      // 3. Projection: newCenterX = Cx + (viewCenterX - Cx) * ratio
-      const newCenterX = Cx + (viewCenterX - Cx) * ratio;
-      const newCenterY = Cy + (viewCenterY - Cy) * ratio;
+      // 3. Vector distance
+      const distanceX = viewCenterX - focalOriginX;
+      const distanceY = viewCenterY - focalOriginY;
 
-      // 4. Update viewport position
+      // 4. Update viewport position natively based on scale transformation
       container.scrollTo({
-        left: newCenterX - clientWidth / 2,
-        top: newCenterY - clientHeight / 2,
+        left: scrollLeft + distanceX * (ratio - 1),
+        top: scrollTop + distanceY * (ratio - 1),
         behavior: 'instant'
       });
     });
@@ -698,28 +699,39 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
   // Inline aiming: correct scroll position to keep viewport center stable after scale change.
   // Runs synchronously inside gesture handlers to avoid 1-frame drift.
   // Also syncs lastScaleRef so the useLayoutEffect Aiming Engine skips (no-op) on React commit.
-  const applyInlineAiming = useCallback((oldScale: number, newScale: number) => {
+  const applyInlineAiming = useCallback((oldScale: number, newScale: number, originX: number, originY: number) => {
     const container = containerRef.current;
-    const content = contentRef.current;
-    if (!container || !content) return;
+    const camera = cameraRef.current;
+    if (!container || !camera) return;
 
     lastScaleRef.current = newScale;
 
-    const { scrollLeft, scrollTop, clientWidth, clientHeight } = container;
+    // Use native coordinates relative to the viewport
+    const containerRect = container.getBoundingClientRect();
+    const cameraRect = camera.getBoundingClientRect();
+
+    // Mouse coordinates relative to the container
+    const mouseX = originX - containerRect.left;
+    const mouseY = originY - containerRect.top;
+
+    // Camera top-left coordinates relative to the container
+    const cameraX = cameraRect.left - containerRect.left;
+    const cameraY = cameraRect.top - containerRect.top;
+
+    // Distance from the camera's original top-left to the mouse
+    const distanceX = mouseX - cameraX;
+    const distanceY = mouseY - cameraY;
+
     const ratio = newScale / oldScale;
 
-    const Cx = content.scrollWidth / 2;
-    const Cy = scrollModeRef.current === ScrollMode.CONTINUOUS ? 0 : content.scrollHeight / 2;
-
-    const viewCenterX = scrollLeft + clientWidth / 2;
-    const viewCenterY = scrollTop + clientHeight / 2;
-
-    const newCenterX = Cx + (viewCenterX - Cx) * ratio;
-    const newCenterY = Cy + (viewCenterY - Cy) * ratio;
+    // To keep the mouse anchored on the same point of the scaled content,
+    // we must adjust the scroll position by the change in distance caused by the scalar ratio.
+    const newScrollLeft = container.scrollLeft + distanceX * (ratio - 1);
+    const newScrollTop = container.scrollTop + distanceY * (ratio - 1);
 
     container.scrollTo({
-      left: newCenterX - clientWidth / 2,
-      top: newCenterY - clientHeight / 2,
+      left: newScrollLeft,
+      top: newScrollTop,
       behavior: 'instant'
     });
   }, []);
@@ -741,7 +753,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
         if (cameraRef.current) {
           cameraRef.current.style.transform = `scale(${newScale})`;
         }
-        applyInlineAiming(oldScale, newScale);
+        applyInlineAiming(oldScale, newScale, e.clientX, e.clientY);
 
         // Debounced commit: sync React state after gesture settles (80ms)
         if (wheelCommitTimerRef.current !== null) {
@@ -806,7 +818,9 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
         if (cameraRef.current) {
           cameraRef.current.style.transform = `scale(${newScale})`;
         }
-        applyInlineAiming(oldScale, newScale);
+        const barycenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const barycenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        applyInlineAiming(oldScale, newScale, barycenterX, barycenterY);
       }
     };
 
@@ -984,75 +998,77 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
           theme={theme}
         />
 
-        <div
-          ref={cameraRef}
-          id="pdf-camera"
-          style={{
-            transform: `scale(${scale})`,
-            transformOrigin: isContinuous ? 'top center' : 'center center',
-            willChange: 'transform',
-            display: 'inline-block',
-            verticalAlign: 'top' as const
-          }}
-        >
+        {/* Sprint 2 Refactoring: Padding is extracted outside of the scaled element */}
+        <div id="pdf-spacing-wrapper" style={{ padding: '100dvh 100vw' }}>
           <div
-            ref={contentRef}
-            id="pdf-workspace"
+            ref={cameraRef}
+            id="pdf-camera"
             style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minWidth: 'fit-content',
-              minHeight: 'fit-content',
-              padding: '100dvh 100vw'
+              transform: `scale(${scale})`,
+              transformOrigin: '0 0',
+              willChange: 'transform',
+              display: 'inline-block',
+              verticalAlign: 'top' as const
             }}
           >
-            <div id="pdf-scale-layer" className="flex-none flex flex-col items-center gap-8">
-              {isContinuous ? (
-                Array.from({ length: numPages }, (_, i) => {
-                  const pn = i + 1;
-                  return (
-                    <LazyPage
-                      key={`page_${pn}`}
-                      pageNumber={pn}
-                      scale={1.0}
-                      debouncedScale={debouncedScale}
-                      pageDimensions={allPagesDimensions.get(pn) || pageDimensions}
-                      containerRef={containerRef}
-                      theme={theme}
-                      themeVariant={themeVariant}
-                      annotations={annotationsByPage.get(pn) || emptyAnnotations}
-                      isAnnotationMode={isAnnotationMode}
-                      annotationColor={annotationColor}
-                      onAddAnnotation={onAddAnnotation}
-                      onUpdateAnnotation={onUpdateAnnotation}
-                      onDeleteAnnotation={onDeleteAnnotation}
-                      onVisible={handlePageVisible}
-                      currentPage={pageNumber}
-                    />
-                  );
-                })
-              ) : (
-                <LazyPage
-                  pageNumber={pageNumber}
-                  scale={1.0}
-                  debouncedScale={debouncedScale}
-                  pageDimensions={allPagesDimensions.get(pageNumber) || pageDimensions}
-                  containerRef={containerRef}
-                  theme={theme}
-                  themeVariant={themeVariant}
-                  annotations={annotationsByPage.get(pageNumber) || emptyAnnotations}
-                  isAnnotationMode={isAnnotationMode}
-                  annotationColor={annotationColor}
-                  onAddAnnotation={onAddAnnotation}
-                  onUpdateAnnotation={onUpdateAnnotation}
-                  onDeleteAnnotation={onDeleteAnnotation}
-                  onVisible={handlePageVisible}
-                  forceRender={true}
-                  currentPage={pageNumber}
-                />
-              )}
+            <div
+              ref={contentRef}
+              id="pdf-workspace"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: 'fit-content',
+                minHeight: 'fit-content'
+              }}
+            >
+              <div id="pdf-scale-layer" className="flex-none flex flex-col items-center gap-8">
+                {isContinuous ? (
+                  Array.from({ length: numPages }, (_, i) => {
+                    const pn = i + 1;
+                    return (
+                      <LazyPage
+                        key={`page_${pn}`}
+                        pageNumber={pn}
+                        scale={1.0}
+                        debouncedScale={debouncedScale}
+                        pageDimensions={allPagesDimensions.get(pn) || pageDimensions}
+                        containerRef={containerRef}
+                        theme={theme}
+                        themeVariant={themeVariant}
+                        annotations={annotationsByPage.get(pn) || emptyAnnotations}
+                        isAnnotationMode={isAnnotationMode}
+                        annotationColor={annotationColor}
+                        onAddAnnotation={onAddAnnotation}
+                        onUpdateAnnotation={onUpdateAnnotation}
+                        onDeleteAnnotation={onDeleteAnnotation}
+                        onVisible={handlePageVisible}
+                        currentPage={pageNumber}
+                      />
+                    );
+                  })
+                ) : (
+                  <LazyPage
+                    pageNumber={pageNumber}
+                    scale={1.0}
+                    debouncedScale={debouncedScale}
+                    pageDimensions={allPagesDimensions.get(pageNumber) || pageDimensions}
+                    containerRef={containerRef}
+                    theme={theme}
+                    themeVariant={themeVariant}
+                    annotations={annotationsByPage.get(pageNumber) || emptyAnnotations}
+                    isAnnotationMode={isAnnotationMode}
+                    annotationColor={annotationColor}
+                    onAddAnnotation={onAddAnnotation}
+                    onUpdateAnnotation={onUpdateAnnotation}
+                    onDeleteAnnotation={onDeleteAnnotation}
+                    onVisible={handlePageVisible}
+                    forceRender={true}
+                    currentPage={pageNumber}
+                  />
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -21,7 +21,7 @@
 
 ## 4. Fichiers de référence
 - **Écriture obligatoire :** `CODER_LOG.md`
-- **Lecture :** `CLAUDE.md` (patterns critiques et architecture à respecter), `TECH_ARCH.md`, `PROJECT_STATUS.md`, prompts du PM. Fichiers dans `.team_sync/phases/` si la tâche le requiert.
+- **Lecture :** Ta fiche de rôle `ROLE_CODER_SPEC.md` en début de mission, `CLAUDE.md` (patterns critiques et architecture à respecter), `TECH_ARCH.md`, `PROJECT_STATUS.md`, prompts du PM. Fichiers dans `.team_sync/phases/` si la tâche le requiert.
 
 ## 5. Communication
 - **Rapporte à :** PM
