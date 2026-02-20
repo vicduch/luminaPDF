@@ -525,13 +525,6 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       return;
     }
 
-    // Si le zoom vient du pinch ou de la molette, il est déjà traité en temps réel par applyInlineAiming (direct-DOM).
-    if (isInteractiveZoomRef.current) {
-      lastScaleRef.current = scale;
-      isInteractiveZoomRef.current = false; // Réarmement pour les boutons de zoom externes
-      return;
-    }
-
     // Capture current state before rAF
     const { scrollLeft, scrollTop, clientWidth, clientHeight } = container;
     const oldScale = lastScaleRef.current;
@@ -548,8 +541,9 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
 
       // 1. Pivot of expansion is physical origin: 0 0. 
       // This is shifted by the #pdf-spacing-wrapper padding: container.clientWidth and container.clientHeight
-      const focalOriginX = container.clientWidth;
-      const focalOriginY = container.clientHeight;
+      const camera = cameraRef.current;
+      const focalOriginX = camera?.offsetLeft || container.clientWidth;
+      const focalOriginY = camera?.offsetTop || container.clientHeight;
 
       // 2. We find the distance between the visual center and the focal origin
       const viewCenterX = scrollLeft + clientWidth / 2;
@@ -714,7 +708,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
   }, [scrollToPage, setPageNumber]);
 
   // Sprint 2.9: Pinch-to-Zoom via wheel event with ctrlKey
-  // 120fps optimization: write directly to DOM during gesture, commit to React after.
+  // Simplified to standard 60fps React state to prevent any zoom drift or jitter.
   const scaleRef = useRef(scale);
   scaleRef.current = scale;
 
@@ -724,46 +718,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
   const scrollModeRef = useRef(scrollMode);
   scrollModeRef.current = scrollMode;
 
-  const wheelCommitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Inline aiming: correct scroll position to keep viewport center stable after scale change.
-  // Runs synchronously inside gesture handlers to avoid 1-frame drift.
-  // Also syncs lastScaleRef so the useLayoutEffect Aiming Engine skips (no-op) on React commit.
-  const applyInlineAiming = useCallback((oldScale: number, newScale: number, originX: number, originY: number, preMutationCameraRect: DOMRect) => {
-    const container = containerRef.current;
-    const content = contentRef.current;
-    if (!container || !content) return;
-
-    lastScaleRef.current = newScale;
-
-    // Use native coordinates relative to the viewport
-    const containerRect = container.getBoundingClientRect();
-
-    // Mouse coordinates relative to the container
-    const mouseX = originX - containerRect.left;
-    const mouseY = originY - containerRect.top;
-
-    // Camera top-left coordinates relative to the container (the focal origin) BEFORE mutation
-    const cameraX = preMutationCameraRect.left - containerRect.left;
-    const cameraY = preMutationCameraRect.top - containerRect.top;
-
-    // Distance from the camera's original top-left to the mouse
-    const distanceX = mouseX - cameraX;
-    const distanceY = mouseY - cameraY;
-
-    const ratio = newScale / oldScale;
-
-    // To keep the mouse anchored on the same point of the scaled content,
-    // we must adjust the scroll position by the change in distance caused by the scalar ratio.
-    let newScrollLeft = container.scrollLeft + distanceX * (ratio - 1);
-    let newScrollTop = container.scrollTop + distanceY * (ratio - 1);
-
-    container.scrollTo({
-      left: newScrollLeft,
-      top: newScrollTop,
-      behavior: 'instant'
-    });
-  }, []);
+  const wheelThrottler = useRef<number | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -772,45 +727,35 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     const handleWheel = (e: WheelEvent) => {
       if (e.ctrlKey) {
         e.preventDefault();
-        isInteractiveZoomRef.current = true;
 
         const zoomFactor = Math.exp(-e.deltaY * 0.0015);
         const oldScale = scaleRef.current;
         const newScale = Math.max(0.1, Math.min(8.0, oldScale * zoomFactor));
 
-        // Capture camera dimensions BEFORE mutation
-        const preMutationCameraRect = cameraRef.current!.getBoundingClientRect();
-
-        // Direct DOM write — bypasses React reconciliation entirely
+        // Update local ref to keep smooth calculation
         scaleRef.current = newScale;
-        if (cameraRef.current) {
-          cameraRef.current.style.transform = `scale(${newScale})`;
-        }
-        const rect = containerRef.current!.getBoundingClientRect();
-        applyInlineAiming(oldScale, newScale, rect.left + container.clientWidth / 2, rect.top + container.clientHeight / 2, preMutationCameraRect);
 
-        // Debounced commit: sync React state after gesture settles (80ms)
-        if (wheelCommitTimerRef.current !== null) {
-          clearTimeout(wheelCommitTimerRef.current);
+        // Throttle React state updates to screen refresh rate (60fps)
+        if (wheelThrottler.current === null) {
+          wheelThrottler.current = requestAnimationFrame(() => {
+            onScaleChangeRef.current?.(scaleRef.current);
+            wheelThrottler.current = null;
+          });
         }
-        wheelCommitTimerRef.current = setTimeout(() => {
-          wheelCommitTimerRef.current = null;
-          onScaleChangeRef.current?.(scaleRef.current);
-        }, 80);
       }
     };
 
     container.addEventListener('wheel', handleWheel, { passive: false });
     return () => {
       container.removeEventListener('wheel', handleWheel);
-      if (wheelCommitTimerRef.current !== null) {
-        clearTimeout(wheelCommitTimerRef.current);
+      if (wheelThrottler.current !== null) {
+        cancelAnimationFrame(wheelThrottler.current);
       }
     };
-  }, [applyInlineAiming]); // Mounted once — applyInlineAiming is stable (useCallback with no deps)
+  }, []); // Mounted once
 
   // Sprint 2.10: Pinch-to-Zoom via touch events (touchscreen)
-  // 120fps optimization: direct DOM during pinch, commit on touchEnd.
+  // Simplified to standard 60fps React state zoom synchronization.
   const initialPinchDistance = useRef<number | null>(null);
   const initialPinchScale = useRef<number>(scale);
   const scaleRefTouch = useRef(scale);
@@ -818,6 +763,8 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
 
   const onScaleChangeRefTouch = useRef(onScaleChange);
   onScaleChangeRefTouch.current = onScaleChange;
+
+  const pinchThrottler = useRef<number | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -840,36 +787,33 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     const handleTouchMove = (e: TouchEvent) => {
       if (e.touches.length === 2 && initialPinchDistance.current !== null) {
         e.preventDefault();
-        isInteractiveZoomRef.current = true;
 
         const currentDistance = getDistance(e.touches);
         const ratio = currentDistance / initialPinchDistance.current;
-        const oldScale = scaleRefTouch.current;
         const newScale = Math.max(0.1, Math.min(8.0, initialPinchScale.current * ratio));
 
-        // Capture camera dimensions BEFORE mutation
-        const preMutationCameraRect = cameraRef.current!.getBoundingClientRect();
-
-        // Direct DOM write — bypasses React reconciliation entirely
         scaleRefTouch.current = newScale;
-        scaleRef.current = newScale;
-        if (cameraRef.current) {
-          cameraRef.current.style.transform = `scale(${newScale})`;
+
+        // Throttle React state updates to screen refresh rate (60fps)
+        if (pinchThrottler.current === null) {
+          pinchThrottler.current = requestAnimationFrame(() => {
+            onScaleChangeRefTouch.current?.(scaleRefTouch.current);
+            pinchThrottler.current = null;
+          });
         }
-        const barycenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-        const barycenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        applyInlineAiming(oldScale, newScale, barycenterX, barycenterY, preMutationCameraRect);
       }
     };
 
     const handleTouchEnd = () => {
-      if (initialPinchDistance.current !== null) {
-        // Commit final scale to React state once at gesture end
-        requestAnimationFrame(() => {
-          onScaleChangeRefTouch.current?.(scaleRefTouch.current);
-        });
-      }
       initialPinchDistance.current = null;
+      if (pinchThrottler.current !== null) {
+        cancelAnimationFrame(pinchThrottler.current);
+        pinchThrottler.current = null;
+      }
+      // Ensure the final state resolves cleanly
+      requestAnimationFrame(() => {
+        onScaleChangeRefTouch.current?.(scaleRefTouch.current);
+      });
     };
 
     container.addEventListener('touchstart', handleTouchStart, { passive: false });
@@ -881,7 +825,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       container.removeEventListener('touchmove', handleTouchMove);
       container.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [applyInlineAiming]); // Mounted once
+  }, []); // Mounted once
 
   // Sprint 2.11: Swipe horizontal to change page (Tablets)
   // Only triggers if scroll is at boundaries (to avoid conflict with panning)
