@@ -2303,4 +2303,23 @@ Modifications :
 
 **Résultat :** ✅ Les ancrages absolus au centre physique du viewport tiennent désormais parfaitement compte de la translation globale liée au système de padding.
 
+---
 
+## 2026-02-20 — Phase 4B : Navigation Tactile Tablette
+
+### Tâche : Débridage du Panning 2D et fiabilisation gestuelle (Swipe / Pinch)
+
+**Fichiers modifiés:** `src/components/PdfViewer.tsx`
+
+**Modifications apportées:**
+1. **Libération du Panning 2D :** Remplacement de `touchAction: scrollMode === ScrollMode.PAGED ? 'pan-y pinch-zoom' : 'manipulation'` par `touchAction: 'manipulation'` afin de redonner à l'utilisateur la liberté de scroller sur X et Y la zone documentée + espace de padding.
+2. **Amélioration du Swipe-to-Turn :** 
+   - Seuils de détection revus pour éviter les swipes diagonaux non sollicités (`horizontalThreshold` à 80, `verticalThreshold` à 50).
+   - Tolérance pour la détection de bordure de zoom passée à `50` pixels (`tolerance = 50`).
+   - Le `centerDocument()` a été réécrit avec `useCallback` pour pouvoir être appelé de l'extérieur du `useLayoutEffect`. L'appel au changement de page est maintenant forcé au centre via `requestAnimationFrame(centerDocument(pageN))`.
+3. **Pinch-To-Zoom Fiabilisé :**
+   - Options d'écouteur au `touchstart` du pinch modifiées : ajout de `{ passive: false }` pour bloquer rigoureusement l'évènement natif de Safari.
+   - Commit du zoom réécrit pour être encapsulé dans un `requestAnimationFrame` (`onScaleChangeRefTouch`), évitant tout risque de gel de thread lors du relâchement des doigts (`handleTouchEnd`).
+4. **Validation :** Build TypeScript (tsc) réussi.
+
+**Résultat :** ✅ Navigation tablette fiabilisée, déblocage 2D fluide avec pinch-to-zoom stable et interactif.

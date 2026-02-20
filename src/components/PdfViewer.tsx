@@ -402,45 +402,48 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
   }, []);
 
   // Sprint 2.7: Initial Centering on File Load - Invariant Workspace Center
+  const centerDocument = useCallback((targetPage?: number) => {
+    const container = containerRef.current;
+    const content = contentRef.current;
+    if (!container || !content) return;
+
+    const pageToCenter = targetPage !== undefined ? targetPage : pageNumber;
+
+    // If restoring a reading position in continuous mode, scroll to that page
+    if (scrollMode === ScrollMode.CONTINUOUS && pageToCenter > 1) {
+      const gap = 32; // gap-8 = 2rem = 32px
+      let targetTop = 0;
+
+      for (let i = 1; i < pageToCenter; i++) {
+        const dims = allPagesDimensions.get(i);
+        if (dims) targetTop += dims.height + gap;
+      }
+
+      // Apply scale since the content is scaled
+      targetTop *= scale;
+
+      container.scrollTo({
+        left: (container.clientWidth / 2) + (content.scrollWidth * scale / 2),
+        top: (container.clientHeight) + targetTop,
+        behavior: 'instant'
+      });
+    } else {
+      // Default: center on the workspace geometric center using native dimensions plus the padding offset
+      container.scrollTo({
+        left: (container.clientWidth / 2) + (content.scrollWidth * scale / 2),
+        top: (container.clientHeight / 2) + (content.scrollHeight * scale / 2),
+        behavior: 'instant'
+      });
+    }
+  }, [scrollMode, pageNumber, scale, allPagesDimensions]);
+
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container || !file || numPages === 0 || allPagesDimensions.size === 0) return;
 
-    const centerDocument = () => {
-      const content = contentRef.current;
-      if (!content) return;
-
-      // If restoring a reading position in continuous mode, scroll to that page
-      if (scrollMode === ScrollMode.CONTINUOUS && pageNumber > 1) {
-        const gap = 32; // gap-8 = 2rem = 32px
-        let targetTop = 0;
-
-        for (let i = 1; i < pageNumber; i++) {
-          const dims = allPagesDimensions.get(i);
-          if (dims) targetTop += dims.height + gap;
-        }
-
-        // Apply scale since the content is scaled
-        targetTop *= scale;
-
-        container.scrollTo({
-          left: (container.clientWidth / 2) + (content.scrollWidth * scale / 2),
-          top: (container.clientHeight) + targetTop,
-          behavior: 'instant'
-        });
-      } else {
-        // Default: center on the workspace geometric center using native dimensions plus the padding offset
-        container.scrollTo({
-          left: (container.clientWidth / 2) + (content.scrollWidth * scale / 2),
-          top: (container.clientHeight / 2) + (content.scrollHeight * scale / 2),
-          behavior: 'instant'
-        });
-      }
-    };
-
     // Double rAF ensures the layout is painted and dimensions are stable before measuring
-    requestAnimationFrame(() => requestAnimationFrame(centerDocument));
-  }, [file, numPages, allPagesDimensions.size]);
+    requestAnimationFrame(() => requestAnimationFrame(() => centerDocument()));
+  }, [file, numPages, allPagesDimensions.size, centerDocument]);
 
   // Sprint 2.11: Stabilize scroll position when changing scroll mode
   const lastScrollModeRef = useRef(scrollMode);
@@ -827,12 +830,14 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     const handleTouchEnd = () => {
       if (initialPinchDistance.current !== null) {
         // Commit final scale to React state once at gesture end
-        onScaleChangeRefTouch.current?.(scaleRefTouch.current);
+        requestAnimationFrame(() => {
+          onScaleChangeRefTouch.current?.(scaleRefTouch.current);
+        });
       }
       initialPinchDistance.current = null;
     };
 
-    container.addEventListener('touchstart', handleTouchStart, { passive: true });
+    container.addEventListener('touchstart', handleTouchStart, { passive: false });
     container.addEventListener('touchmove', handleTouchMove, { passive: false });
     container.addEventListener('touchend', handleTouchEnd, { passive: true });
 
@@ -868,8 +873,8 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       const dy = touchEndY - touchStartY.current;
 
       // Ensure it's a horizontal swipe (dx >> dy) and meets threshold
-      const horizontalThreshold = 50;
-      const verticalThreshold = 40;
+      const horizontalThreshold = 80;
+      const verticalThreshold = 50;
 
       if (Math.abs(dx) > horizontalThreshold && Math.abs(dy) < verticalThreshold) {
         // In paged mode with no meaningful zoom, allow direct swipe navigation.
@@ -879,7 +884,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
         let isAtRightEdge = true;
 
         if (isZoomed) {
-          const tolerance = 16;
+          const tolerance = 50;
           const currentPageEl = container.querySelector(`[data-page-number="${pageNumber}"]`) as HTMLElement | null;
           if (currentPageEl) {
             const pageRect = currentPageEl.getBoundingClientRect();
@@ -895,10 +900,16 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
 
         if (dx > 0 && isAtLeftEdge) {
           // Swipe Right -> Previous Page (only if scroll is at left edge)
-          if (pageNumber > 1) setPageNumber?.(pageNumber - 1);
+          if (pageNumber > 1) {
+            setPageNumber?.(pageNumber - 1);
+            requestAnimationFrame(() => requestAnimationFrame(() => centerDocument(pageNumber - 1)));
+          }
         } else if (dx < 0 && isAtRightEdge) {
           // Swipe Left -> Next Page (only if scroll is at right edge)
-          if (pageNumber < numPages) setPageNumber?.(pageNumber + 1);
+          if (pageNumber < numPages) {
+            setPageNumber?.(pageNumber + 1);
+            requestAnimationFrame(() => requestAnimationFrame(() => centerDocument(pageNumber + 1)));
+          }
         }
       }
 
@@ -913,7 +924,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       container.removeEventListener('touchstart', handleTouchStart);
       container.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [scrollMode, pageNumber, numPages, setPageNumber, scale]);
+  }, [scrollMode, pageNumber, numPages, setPageNumber, scale, centerDocument]);
 
   // Auto Page-Fit: On tablet in paginated mode, fit page to viewport width
   const userHasZoomedRef = useRef(false);
@@ -972,7 +983,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
         backgroundColor: 'var(--lumina-app-bg)',
         // Sprint Perf-D: Conditional touchAction to avoid swipe conflict
         // PAGED: block pan-x for swipe gestures | CONTINUOUS: allow pan-x for scroll
-        touchAction: scrollMode === ScrollMode.PAGED ? 'pan-y pinch-zoom' : 'manipulation',
+        touchAction: 'manipulation',
         WebkitOverflowScrolling: 'touch'
       }}
       onContextMenu={(e) => e.preventDefault()}
