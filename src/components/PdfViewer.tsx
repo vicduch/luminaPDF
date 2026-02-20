@@ -827,22 +827,59 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     };
   }, []); // Mounted once
 
-  // Sprint 4C: Elastic Swipe-to-Turn (Tablets)
-  // Pull-to-refresh style page turns when panning beyond document boundaries
+  // Sprint 4C+: Elastic Swipe-to-Turn + Hold-to-Fast-Forward (Tablets)
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const swipeOffsetRef = useRef<number>(0);
+  const swipeDirectionRef = useRef<'prev' | 'next' | null>(null);
+  const fastForwardTimerRef = useRef<number | null>(null);
+  const fastForwardStepRef = useRef<number>(0);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container || scrollMode !== ScrollMode.PAGED) return;
 
+    // Refs that the timer closures can read current values from
+    const pageNumberRef = { current: pageNumber };
+    pageNumberRef.current = pageNumber;
+
+    const stopFastForward = () => {
+      if (fastForwardTimerRef.current !== null) {
+        clearTimeout(fastForwardTimerRef.current);
+        fastForwardTimerRef.current = null;
+      }
+      fastForwardStepRef.current = 0;
+    };
+
+    const scheduleFastForwardStep = () => {
+      const step = fastForwardStepRef.current;
+      // Exponential decay: starts at 400ms, floor at 60ms
+      const delay = Math.max(60, 400 * Math.pow(0.72, step));
+
+      fastForwardTimerRef.current = window.setTimeout(() => {
+        const dir = swipeDirectionRef.current;
+        if (!dir) return;
+
+        setPageNumber?.(prev => {
+          const next = dir === 'next' ? Math.min(numPages, prev + 1) : Math.max(1, prev - 1);
+          if (next !== prev) {
+            requestAnimationFrame(() => requestAnimationFrame(() => centerDocument(next)));
+          }
+          return next;
+        });
+
+        fastForwardStepRef.current += 1;
+        scheduleFastForwardStep(); // schedule next step with shorter delay
+      }, delay);
+    };
+
     const handleTouchStart = (e: TouchEvent) => {
-      // Only single-finger touches for swipe
       if (e.touches.length === 1) {
         touchStartX.current = e.touches[0].clientX;
         touchStartY.current = e.touches[0].clientY;
         swipeOffsetRef.current = 0;
+        swipeDirectionRef.current = null;
+        stopFastForward();
       }
     };
 
@@ -854,15 +891,12 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       const dx = currentX - touchStartX.current;
       const dy = currentY - touchStartY.current;
 
-      // Only engage if movement is predominantly horizontal
       if (Math.abs(dx) > Math.abs(dy) * 1.5) {
         let isAtLeftEdge = false;
         let isAtRightEdge = false;
-
-        const tolerance = 5; // Minimal tolerance for edge detection
-
-        // Detect edges based on unzoomed vs zoomed state
+        const tolerance = 5;
         const isZoomed = scale > 1.05;
+
         if (isZoomed) {
           const currentPageEl = container.querySelector(`[data-page-number="${pageNumber}"]`) as HTMLElement | null;
           if (currentPageEl) {
@@ -876,65 +910,72 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
             isAtRightEdge = scrollLeft + clientWidth >= scrollWidth - tolerance;
           }
         } else {
-          // If not zoomed, we are effectively always at the edges for horizontal turning
           isAtLeftEdge = true;
           isAtRightEdge = true;
         }
 
-        // Pulling right while at left edge (intent: previous page)
+        let newDirection: 'prev' | 'next' | null = null;
+
         if (dx > 0 && isAtLeftEdge && pageNumber > 1) {
-          e.preventDefault(); // Stop OS nav swipe
-          swipeOffsetRef.current = dx * 0.3; // Elastic friction
-        }
-        // Pulling left while at right edge (intent: next page)
-        else if (dx < 0 && isAtRightEdge && pageNumber < numPages) {
-          e.preventDefault(); // Stop OS nav swipe
-          swipeOffsetRef.current = dx * 0.3; // Elastic friction
-        }
-        else {
+          e.preventDefault();
+          swipeOffsetRef.current = dx * 0.3;
+          newDirection = 'prev';
+        } else if (dx < 0 && isAtRightEdge && pageNumber < numPages) {
+          e.preventDefault();
+          swipeOffsetRef.current = dx * 0.3;
+          newDirection = 'next';
+        } else {
           swipeOffsetRef.current = 0;
         }
 
-        // Apply rendering of tension
+        // Apply elastic visual tension
         if (swipeOffsetRef.current !== 0 && cameraRef.current) {
           cameraRef.current.style.transform = `scale(${scale}) translateX(${swipeOffsetRef.current / scale}px)`;
-          cameraRef.current.style.transition = 'none'; // Lock 1:1 with finger
+          cameraRef.current.style.transition = 'none';
+        }
+
+        // Start fast-forward timer if direction locked in and not already running
+        if (newDirection && newDirection !== swipeDirectionRef.current) {
+          stopFastForward();
+          swipeDirectionRef.current = newDirection;
+          // Short initial hold delay before fast-forwarding kicks in
+          fastForwardTimerRef.current = window.setTimeout(() => {
+            fastForwardStepRef.current = 0;
+            scheduleFastForwardStep();
+          }, 600); // 600ms hold before first auto-turn
+        } else if (!newDirection) {
+          // Finger moved back to neutral — cancel fast-forward
+          swipeDirectionRef.current = null;
+          stopFastForward();
         }
       }
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
+      stopFastForward();
+      swipeDirectionRef.current = null;
+
       if (touchStartX.current === null || touchStartY.current === null) return;
 
       const touchEndX = e.changedTouches[0].clientX;
       const dx = touchEndX - touchStartX.current;
-
       const TURN_THRESHOLD = 80;
 
       if (swipeOffsetRef.current !== 0) {
-        // Was dragging elastically
         if (Math.abs(dx) > TURN_THRESHOLD) {
-          // Commited full turn
           const isNext = dx < 0;
           const targetPage = isNext ? pageNumber + 1 : pageNumber - 1;
-
           if (targetPage >= 1 && targetPage <= numPages) {
             setPageNumber?.(targetPage);
-            // After page settles in React, smoothly center it
             requestAnimationFrame(() => requestAnimationFrame(() => centerDocument(targetPage)));
           }
         }
 
-        // Snap back view regardless of turn status (if turned, new page fades in centered anyway)
         if (cameraRef.current) {
           cameraRef.current.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)';
-          cameraRef.current.style.transform = `scale(${scale})`; // removes translateX
-
-          // Cleanup transition style after animation finishes
+          cameraRef.current.style.transform = `scale(${scale})`;
           setTimeout(() => {
-            if (cameraRef.current) {
-              cameraRef.current.style.transition = '';
-            }
+            if (cameraRef.current) cameraRef.current.style.transition = '';
           }, 300);
         }
       }
@@ -944,12 +985,12 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       swipeOffsetRef.current = 0;
     };
 
-    // passive: false on start/move allows preventDefault inside move
     container.addEventListener('touchstart', handleTouchStart, { passive: false });
     container.addEventListener('touchmove', handleTouchMove, { passive: false });
     container.addEventListener('touchend', handleTouchEnd, { passive: true });
 
     return () => {
+      stopFastForward();
       container.removeEventListener('touchstart', handleTouchStart);
       container.removeEventListener('touchmove', handleTouchMove);
       container.removeEventListener('touchend', handleTouchEnd);
