@@ -15,7 +15,7 @@
 - [x] Phase 3 : Annotations & Sommaire (Délivré, en attente de la base géométrique)
 - [x] Phase 4 : Rendu Responsive & Polissage UX (Délivré)
 - [x] Phase 5 : Rendu Seamless & Performance 120fps (Intégré au code, mais géométrie sous-jacente instable)
-- [ ] Phase 4B : PWA/tablette (viewport dvh, manifest, fix scroll continu 350+ pages) — implémenté, validation manuelle en attente
+- [x] Phase 4B : PWA/tablette (viewport dvh, manifest, fix scroll continu 350+ pages) — implémenté, validation manuelle en attente
 
 ## Roadmap
 

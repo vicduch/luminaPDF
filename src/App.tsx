@@ -272,10 +272,29 @@ function App() {
 
             // Reposition after scale update:
             // continuous -> keep current page in view
-            // paged -> handled perfectly by the Global Aiming Engine in PdfViewer.tsx
+            // paged -> force recenter to the middle of the document
             requestAnimationFrame(() => requestAnimationFrame(() => {
                 if (scrollMode === ScrollMode.CONTINUOUS && pdfViewerRef.current) {
                     pdfViewerRef.current.scrollToPage(pageNumber);
+                    return;
+                }
+
+                const container = pdfViewerRef.current?.containerRef?.current;
+                const content = pdfViewerRef.current?.contentRef?.current;
+
+                if (container && content) {
+                    const docWidth = content.scrollWidth * targetScale;
+                    const docHeight = content.scrollHeight * targetScale;
+
+                    // The document origin is shifted by the 100vw/100dvh padding
+                    const originX = container.clientWidth;
+                    const originY = container.clientHeight;
+
+                    container.scrollTo({
+                        left: originX + (docWidth / 2) - (container.clientWidth / 2),
+                        top: originY + (docHeight / 2) - (container.clientHeight / 2),
+                        behavior: 'instant'
+                    });
                 }
             }));
         }
