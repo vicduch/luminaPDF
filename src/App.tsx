@@ -287,8 +287,10 @@ function App() {
                     const docHeight = content.scrollHeight * targetScale;
 
                     // The document origin is shifted by the 100vw/100dvh padding
-                    const originX = container.clientWidth;
-                    const originY = container.clientHeight;
+                    // Extract the actual DOM offsets just like the Aiming Engine does
+                    const camera = container.querySelector('#pdf-camera') as HTMLElement | null;
+                    const originX = camera ? camera.offsetLeft : container.clientWidth;
+                    const originY = camera ? camera.offsetTop : container.clientHeight;
 
                     container.scrollTo({
                         left: originX + (docWidth / 2) - (container.clientWidth / 2),
