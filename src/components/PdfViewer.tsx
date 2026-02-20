@@ -827,58 +827,52 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     };
   }, []); // Mounted once
 
-  // Sprint 4C+: Elastic Swipe-to-Turn + Hold-to-Fast-Forward (Tablets)
+  // Sprint 4C & 4E: Elastic Swipe-to-Turn and Fast-Forward Hold (Tablets)
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
   const swipeOffsetRef = useRef<number>(0);
-  const swipeDirectionRef = useRef<'prev' | 'next' | null>(null);
-  const fastForwardTimerRef = useRef<number | null>(null);
-  const fastForwardStepRef = useRef<number>(0);
+
+  // Fast-Forward Engine Refs
+  const fastForwardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fastForwardIntervalRef = useRef<number>(400);
+  const hasFastForwardedRef = useRef<boolean>(false);
+
+  // Decoupled refs to avoid rebinding touch events 120 times a second
+  const latestSwipeStateRef = useRef({ pageNumber, numPages, isZoomed: scale > 1.05 });
+  const latestFuncsRef = useRef({ setPageNumber, centerDocument });
+
+  useLayoutEffect(() => {
+    latestSwipeStateRef.current = { pageNumber, numPages, isZoomed: scale > 1.05 };
+    latestFuncsRef.current = { setPageNumber, centerDocument };
+  });
+
+  // Preserve elastic offset vertically/horizontally during React re-renders (rapid page turns override transform inline style)
+  useLayoutEffect(() => {
+    if (scrollMode === ScrollMode.PAGED && swipeOffsetRef.current !== 0 && cameraRef.current) {
+      cameraRef.current.style.transform = `scale(${scale}) translateX(${swipeOffsetRef.current / scale}px)`;
+      cameraRef.current.style.transition = 'none'; // Ensure no snapping during rapid re-renders
+    }
+  });
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container || scrollMode !== ScrollMode.PAGED) return;
-
-    // Refs that the timer closures can read current values from
-    const pageNumberRef = { current: pageNumber };
-    pageNumberRef.current = pageNumber;
 
     const stopFastForward = () => {
       if (fastForwardTimerRef.current !== null) {
         clearTimeout(fastForwardTimerRef.current);
         fastForwardTimerRef.current = null;
       }
-      fastForwardStepRef.current = 0;
-    };
-
-    const scheduleFastForwardStep = () => {
-      const step = fastForwardStepRef.current;
-      // Exponential decay: starts at 400ms, floor at 60ms
-      const delay = Math.max(60, 400 * Math.pow(0.72, step));
-
-      fastForwardTimerRef.current = window.setTimeout(() => {
-        const dir = swipeDirectionRef.current;
-        if (!dir) return;
-
-        setPageNumber?.(prev => {
-          const next = dir === 'next' ? Math.min(numPages, prev + 1) : Math.max(1, prev - 1);
-          if (next !== prev) {
-            requestAnimationFrame(() => requestAnimationFrame(() => centerDocument(next)));
-          }
-          return next;
-        });
-
-        fastForwardStepRef.current += 1;
-        scheduleFastForwardStep(); // schedule next step with shorter delay
-      }, delay);
+      fastForwardIntervalRef.current = 400; // Reset speed
     };
 
     const handleTouchStart = (e: TouchEvent) => {
+      // Only single-finger touches for swipe
       if (e.touches.length === 1) {
         touchStartX.current = e.touches[0].clientX;
         touchStartY.current = e.touches[0].clientY;
         swipeOffsetRef.current = 0;
-        swipeDirectionRef.current = null;
+        hasFastForwardedRef.current = false;
         stopFastForward();
       }
     };
@@ -891,14 +885,17 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       const dx = currentX - touchStartX.current;
       const dy = currentY - touchStartY.current;
 
+      // Only engage if movement is predominantly horizontal
       if (Math.abs(dx) > Math.abs(dy) * 1.5) {
         let isAtLeftEdge = false;
         let isAtRightEdge = false;
-        const tolerance = 5;
-        const isZoomed = scale > 1.05;
 
+        const tolerance = 5; // Minimal tolerance for edge detection
+        const { pageNumber: currPage, numPages: totPages, isZoomed } = latestSwipeStateRef.current;
+
+        // Detect edges based on unzoomed vs zoomed state
         if (isZoomed) {
-          const currentPageEl = container.querySelector(`[data-page-number="${pageNumber}"]`) as HTMLElement | null;
+          const currentPageEl = container.querySelector(`[data-page-number="${currPage}"]`) as HTMLElement | null;
           if (currentPageEl) {
             const pageRect = currentPageEl.getBoundingClientRect();
             const containerRect = container.getBoundingClientRect();
@@ -910,72 +907,104 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
             isAtRightEdge = scrollLeft + clientWidth >= scrollWidth - tolerance;
           }
         } else {
+          // If not zoomed, we are effectively always at the edges for horizontal turning
           isAtLeftEdge = true;
           isAtRightEdge = true;
         }
 
-        let newDirection: 'prev' | 'next' | null = null;
-
-        if (dx > 0 && isAtLeftEdge && pageNumber > 1) {
-          e.preventDefault();
-          swipeOffsetRef.current = dx * 0.3;
-          newDirection = 'prev';
-        } else if (dx < 0 && isAtRightEdge && pageNumber < numPages) {
-          e.preventDefault();
-          swipeOffsetRef.current = dx * 0.3;
-          newDirection = 'next';
-        } else {
+        // Pulling right while at left edge (intent: previous page)
+        if (dx > 0 && isAtLeftEdge && currPage > 1) {
+          e.preventDefault(); // Stop OS nav swipe
+          swipeOffsetRef.current = dx * 0.3; // Elastic friction
+        }
+        // Pulling left while at right edge (intent: next page)
+        else if (dx < 0 && isAtRightEdge && currPage < totPages) {
+          e.preventDefault(); // Stop OS nav swipe
+          swipeOffsetRef.current = dx * 0.3; // Elastic friction
+        }
+        else {
           swipeOffsetRef.current = 0;
+          stopFastForward();
         }
 
-        // Apply elastic visual tension
+        // Apply rendering of tension immediately for 120fps response
         if (swipeOffsetRef.current !== 0 && cameraRef.current) {
-          cameraRef.current.style.transform = `scale(${scale}) translateX(${swipeOffsetRef.current / scale}px)`;
-          cameraRef.current.style.transition = 'none';
+          const currentScale = cameraRef.current.style.transform.match(/scale\(([^)]+)\)/)?.[1] || '1';
+          cameraRef.current.style.transform = `scale(${currentScale}) translateX(${swipeOffsetRef.current / parseFloat(currentScale)}px)`;
+          cameraRef.current.style.transition = 'none'; // Lock 1:1 with finger
         }
 
-        // Start fast-forward timer if direction locked in and not already running
-        if (newDirection && newDirection !== swipeDirectionRef.current) {
-          stopFastForward();
-          swipeDirectionRef.current = newDirection;
-          // Short initial hold delay before fast-forwarding kicks in
-          fastForwardTimerRef.current = window.setTimeout(() => {
-            fastForwardStepRef.current = 0;
-            scheduleFastForwardStep();
-          }, 600); // 600ms hold before first auto-turn
-        } else if (!newDirection) {
-          // Finger moved back to neutral — cancel fast-forward
-          swipeDirectionRef.current = null;
-          stopFastForward();
+        // Fast-Forward Engine: Trigger auto-turn if held beyond threshold
+        const TURN_THRESHOLD = 80;
+        if (Math.abs(swipeOffsetRef.current) > TURN_THRESHOLD) {
+          if (fastForwardTimerRef.current === null) {
+            // Initiate turbo recursive loop
+            const tick = () => {
+              hasFastForwardedRef.current = true;
+              const { pageNumber: currentP, numPages: totalP } = latestSwipeStateRef.current;
+              const { setPageNumber: setPageFn, centerDocument: centerDocFn } = latestFuncsRef.current;
+
+              const isNextPage = dx < 0;
+              const targetPage = isNextPage ? currentP + 1 : currentP - 1;
+
+              if (targetPage >= 1 && targetPage <= totalP) {
+                setPageFn?.(targetPage);
+                // Center new page silently under the translated viewport
+                requestAnimationFrame(() => requestAnimationFrame(() => centerDocFn(targetPage)));
+              }
+
+              // Speed calculates based on how hard they pull (dx)
+              const pullMultiplier = Math.max(1, Math.abs(dx) / 150);
+              // Accelerate: minimum 40ms per page (~25 pages/sec)
+              fastForwardIntervalRef.current = Math.max(40, (fastForwardIntervalRef.current * 0.85) / pullMultiplier);
+
+              fastForwardTimerRef.current = setTimeout(tick, fastForwardIntervalRef.current);
+            };
+
+            // First tick waits 400ms to differentiate normal swipe vs Hold gesture
+            fastForwardIntervalRef.current = 400;
+            fastForwardTimerRef.current = setTimeout(tick, fastForwardIntervalRef.current);
+          }
+        } else {
+          stopFastForward(); // Finger slipped back into safe zone
         }
       }
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
-      stopFastForward();
-      swipeDirectionRef.current = null;
-
       if (touchStartX.current === null || touchStartY.current === null) return;
 
       const touchEndX = e.changedTouches[0].clientX;
       const dx = touchEndX - touchStartX.current;
       const TURN_THRESHOLD = 80;
 
+      stopFastForward();
+
       if (swipeOffsetRef.current !== 0) {
-        if (Math.abs(dx) > TURN_THRESHOLD) {
+        // Commited full single turn (quick swipe without holding 400ms)
+        if (!hasFastForwardedRef.current && Math.abs(dx) > TURN_THRESHOLD) {
+          const { pageNumber: currP, numPages: totP } = latestSwipeStateRef.current;
+          const { setPageNumber: setPFn, centerDocument: centerDFn } = latestFuncsRef.current;
+
           const isNext = dx < 0;
-          const targetPage = isNext ? pageNumber + 1 : pageNumber - 1;
-          if (targetPage >= 1 && targetPage <= numPages) {
-            setPageNumber?.(targetPage);
-            requestAnimationFrame(() => requestAnimationFrame(() => centerDocument(targetPage)));
+          const targetPage = isNext ? currP + 1 : currP - 1;
+
+          if (targetPage >= 1 && targetPage <= totP) {
+            setPFn?.(targetPage);
+            requestAnimationFrame(() => requestAnimationFrame(() => centerDFn(targetPage)));
           }
         }
 
+        // Snap back view regardless of turn status
         if (cameraRef.current) {
           cameraRef.current.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)';
-          cameraRef.current.style.transform = `scale(${scale})`;
+          const currentScale = cameraRef.current.style.transform.match(/scale\(([^)]+)\)/)?.[1] || '1';
+          cameraRef.current.style.transform = `scale(${currentScale})`; // removes translateX
+
           setTimeout(() => {
-            if (cameraRef.current) cameraRef.current.style.transition = '';
+            if (cameraRef.current) {
+              cameraRef.current.style.transition = '';
+            }
           }, 300);
         }
       }
@@ -983,6 +1012,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       touchStartX.current = null;
       touchStartY.current = null;
       swipeOffsetRef.current = 0;
+      hasFastForwardedRef.current = false;
     };
 
     container.addEventListener('touchstart', handleTouchStart, { passive: false });
@@ -990,12 +1020,12 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     container.addEventListener('touchend', handleTouchEnd, { passive: true });
 
     return () => {
-      stopFastForward();
       container.removeEventListener('touchstart', handleTouchStart);
       container.removeEventListener('touchmove', handleTouchMove);
       container.removeEventListener('touchend', handleTouchEnd);
+      stopFastForward();
     };
-  }, [scrollMode, pageNumber, numPages, setPageNumber, scale, centerDocument]);
+  }, [scrollMode]); // Empty dependencies + refs guarantees touch binds persist through all rapid page changes
 
   // Auto Page-Fit: On tablet in paginated mode, fit page to viewport width
   const userHasZoomedRef = useRef(false);
