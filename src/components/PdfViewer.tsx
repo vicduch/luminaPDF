@@ -827,43 +827,43 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     };
   }, []); // Mounted once
 
-  // Sprint 2.11: Swipe horizontal to change page (Tablets)
-  // Only triggers if scroll is at boundaries (to avoid conflict with panning)
+  // Sprint 4C: Elastic Swipe-to-Turn (Tablets)
+  // Pull-to-refresh style page turns when panning beyond document boundaries
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
+  const swipeOffsetRef = useRef<number>(0);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container || scrollMode !== ScrollMode.PAGED) return;
 
     const handleTouchStart = (e: TouchEvent) => {
+      // Only single-finger touches for swipe
       if (e.touches.length === 1) {
         touchStartX.current = e.touches[0].clientX;
         touchStartY.current = e.touches[0].clientY;
+        swipeOffsetRef.current = 0;
       }
     };
 
-    const handleTouchEnd = (e: TouchEvent) => {
-      if (touchStartX.current === null || touchStartY.current === null) return;
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 1 || touchStartX.current === null || touchStartY.current === null) return;
 
-      const touchEndX = e.changedTouches[0].clientX;
-      const touchEndY = e.changedTouches[0].clientY;
-      const dx = touchEndX - touchStartX.current;
-      const dy = touchEndY - touchStartY.current;
+      const currentX = e.touches[0].clientX;
+      const currentY = e.touches[0].clientY;
+      const dx = currentX - touchStartX.current;
+      const dy = currentY - touchStartY.current;
 
-      // Ensure it's a horizontal swipe (dx >> dy) and meets threshold
-      const horizontalThreshold = 80;
-      const verticalThreshold = 50;
+      // Only engage if movement is predominantly horizontal
+      if (Math.abs(dx) > Math.abs(dy) * 1.5) {
+        let isAtLeftEdge = false;
+        let isAtRightEdge = false;
 
-      if (Math.abs(dx) > horizontalThreshold && Math.abs(dy) < verticalThreshold) {
-        // In paged mode with no meaningful zoom, allow direct swipe navigation.
-        // Edge checks are reserved for zoomed pages to avoid panning conflicts.
+        const tolerance = 5; // Minimal tolerance for edge detection
+
+        // Detect edges based on unzoomed vs zoomed state
         const isZoomed = scale > 1.05;
-        let isAtLeftEdge = true;
-        let isAtRightEdge = true;
-
         if (isZoomed) {
-          const tolerance = 50;
           const currentPageEl = container.querySelector(`[data-page-number="${pageNumber}"]`) as HTMLElement | null;
           if (currentPageEl) {
             const pageRect = currentPageEl.getBoundingClientRect();
@@ -875,32 +875,83 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
             isAtLeftEdge = scrollLeft <= tolerance;
             isAtRightEdge = scrollLeft + clientWidth >= scrollWidth - tolerance;
           }
+        } else {
+          // If not zoomed, we are effectively always at the edges for horizontal turning
+          isAtLeftEdge = true;
+          isAtRightEdge = true;
         }
 
-        if (dx > 0 && isAtLeftEdge) {
-          // Swipe Right -> Previous Page (only if scroll is at left edge)
-          if (pageNumber > 1) {
-            setPageNumber?.(pageNumber - 1);
-            requestAnimationFrame(() => requestAnimationFrame(() => centerDocument(pageNumber - 1)));
+        // Pulling right while at left edge (intent: previous page)
+        if (dx > 0 && isAtLeftEdge && pageNumber > 1) {
+          e.preventDefault(); // Stop OS nav swipe
+          swipeOffsetRef.current = dx * 0.3; // Elastic friction
+        }
+        // Pulling left while at right edge (intent: next page)
+        else if (dx < 0 && isAtRightEdge && pageNumber < numPages) {
+          e.preventDefault(); // Stop OS nav swipe
+          swipeOffsetRef.current = dx * 0.3; // Elastic friction
+        }
+        else {
+          swipeOffsetRef.current = 0;
+        }
+
+        // Apply rendering of tension
+        if (swipeOffsetRef.current !== 0 && cameraRef.current) {
+          cameraRef.current.style.transform = `scale(${scale}) translateX(${swipeOffsetRef.current / scale}px)`;
+          cameraRef.current.style.transition = 'none'; // Lock 1:1 with finger
+        }
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (touchStartX.current === null || touchStartY.current === null) return;
+
+      const touchEndX = e.changedTouches[0].clientX;
+      const dx = touchEndX - touchStartX.current;
+
+      const TURN_THRESHOLD = 80;
+
+      if (swipeOffsetRef.current !== 0) {
+        // Was dragging elastically
+        if (Math.abs(dx) > TURN_THRESHOLD) {
+          // Commited full turn
+          const isNext = dx < 0;
+          const targetPage = isNext ? pageNumber + 1 : pageNumber - 1;
+
+          if (targetPage >= 1 && targetPage <= numPages) {
+            setPageNumber?.(targetPage);
+            // After page settles in React, smoothly center it
+            requestAnimationFrame(() => requestAnimationFrame(() => centerDocument(targetPage)));
           }
-        } else if (dx < 0 && isAtRightEdge) {
-          // Swipe Left -> Next Page (only if scroll is at right edge)
-          if (pageNumber < numPages) {
-            setPageNumber?.(pageNumber + 1);
-            requestAnimationFrame(() => requestAnimationFrame(() => centerDocument(pageNumber + 1)));
-          }
+        }
+
+        // Snap back view regardless of turn status (if turned, new page fades in centered anyway)
+        if (cameraRef.current) {
+          cameraRef.current.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)';
+          cameraRef.current.style.transform = `scale(${scale})`; // removes translateX
+
+          // Cleanup transition style after animation finishes
+          setTimeout(() => {
+            if (cameraRef.current) {
+              cameraRef.current.style.transition = '';
+            }
+          }, 300);
         }
       }
 
       touchStartX.current = null;
       touchStartY.current = null;
+      swipeOffsetRef.current = 0;
     };
 
-    container.addEventListener('touchstart', handleTouchStart, { passive: true });
+    // passive: false on start/move allows preventDefault inside move
+    container.addEventListener('touchstart', handleTouchStart, { passive: false });
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
     container.addEventListener('touchend', handleTouchEnd, { passive: true });
 
     return () => {
       container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
       container.removeEventListener('touchend', handleTouchEnd);
     };
   }, [scrollMode, pageNumber, numPages, setPageNumber, scale, centerDocument]);
