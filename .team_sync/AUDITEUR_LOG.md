@@ -1,26 +1,84 @@
-# 📋 Rapport d'Audit - Phase 4B (Navigation Tactile Tablette)
+# 📋 Rapport d'Audit — Jitter du Zoom Molette (Conflit useLayoutEffect)
 
 **Date :** 2026-02-20
-**Statut de la Validation :** ✅ **APPROUVÉ ET SCELLÉ (La tablette est dominée)**
 
-J'ai passé au peigne fin la nouvelle ingénierie tactile intégrée dans le `PdfViewer.tsx`. Les optimisations apportées répondent scrupuleusement aux exigences de la Phase 4B.
+---
 
-### ✅ 1. Panning 2D Natif (Émancipation CSS)
-**Objectif :** Remplacer le `pan-y pinch-zoom` limitant par un comportement X/Y libre.
-**Résultat :** **SUCCÈS**. La directive inline `touchAction` a bien été basculée sur `'manipulation'` pour les deux modes. En abolissant la barrière CSS qui bloquait nativement le défilement horizontal (pan-x), l'utilisateur récupère enfin un panning parfait, libre et accéléré matériellement pour naviguer dans ses pages zoomées.
+## Diagnostic Confirmé
 
-### ✅ 2. Swipe-to-Turn Edge Cases
-**Objectif :** Paramétrage sensible du Swipe Paged et recentrage automatique post-swap.
-**Résultat :** **SUCCÈS**.
-La refonte du détecteur tactile est chirurgicale : 
-- Les seuils sont sécurisés (`horizontalThreshold = 80px`, `verticalThreshold = 50px`).
-- La flexibilité sur les bords pour naviguer en pages zoomées a été assouplie intelligemment à `50px`.
-- L'extraction de `centerDocument` combinée au double `requestAnimationFrame` après modification de page garantit que le document fraichement "swipé" (page X+1) atterrit de nouveau à sa place exacte (centré sur le viewport parent), et non dérivant dans le padding massif du wrapper.
+### Bug
+Le zoom molette (et potentiellement le pinch tactile) subit un sursaut visible (jitter) au moment où le debounce React commit la nouvelle valeur de `scale`.
 
-### ✅ 3. Sûreté du Pinch-To-Zoom (Blindage Safari/iOS)
-**Objectif :** Bloquer les élastiques de sursaut et sécuriser le Commit du Scale React.
-**Résultat :** **SUCCÈS PARFAIT**.
-L'enregistrement de l'event `touchstart` a été explicitement dé-passivé (`{ passive: false }`), rendant toute tentative de Scroll Elastique ou Pinch natif du navigateur neutralisable via `e.preventDefault()`. Aucune interférence du navigateur n'est plus à craindre pendant le zoom.
-Le commit final du scale (`onScaleChange`) à partir du `touchend` a été mis judicieusement en attente via `requestAnimationFrame(...)`, empêchant toute désynchronisation du rendu DOM si React tente un ré-affichage au moment exact de la fin du geste en 120fps.
+### Cause Racine
+Deux systèmes d'ancrage du scroll coexistent et entrent en conflit :
 
-**🎯 VERDICT DE L'AUDITEUR** : Le contrat de la Phase 4B est complètement respecté. L'expérience tactile sur iPad et appareils mobiles hybrides est digne du standard natif Apple. **Phase 4B Validée**.
+1. **`applyInlineAiming`** (L705) — Ancrage direct-DOM 120fps. Fonctionne parfaitement pendant le geste.
+2. **`useLayoutEffect`** (L508) — Aiming Global. Se déclenche quand la prop React `scale` change (commit debounced).
+
+Le garde à L511 (`scale === lastScaleRef.current`) devrait théoriquement court-circuiter l'effet car `applyInlineAiming` synchronise `lastScaleRef.current` (L710). **Mais** ce garde n'est pas suffisant :
+- Le `useLayoutEffect` s'exécute dans la phase commit synchrone de React.
+- Si le commit React arrive alors qu'un `requestAnimationFrame` de l'Aiming Global est encore en file d'attente (L533), celui-ci s'exécutera **après** le commit avec un `scrollLeft/Top` périmé.
+- Même si le garde passe, un rAF résiduel de L533 peut toujours tirer et forcer un `scrollTo` parasite.
+
+### Preuve de code — Le rAF résiduel
+
+```typescript
+// L533-555 — useLayoutEffect Aiming Global
+aimingRafRef.current = requestAnimationFrame(() => {
+  // Ce callback peut tirer APRÈS que applyInlineAiming ait stabilisé le scroll,
+  // avec des valeurs scrollLeft/scrollTop capturées AVANT la stabilisation.
+  container.scrollTo({
+    left: scrollLeft + distanceX * (ratio - 1),  // scrollLeft périmé !
+    top: scrollTop + distanceY * (ratio - 1),
+    behavior: 'instant'
+  });
+});
+```
+
+---
+
+## Plan de Remédiation Prescrit au Coder
+
+### Étape 1 : Déclarer le verrou
+Après les refs existantes (~L393), ajouter :
+```typescript
+const isInteractiveZoomRef = useRef(false);
+```
+
+### Étape 2 : Activer le verrou dans `handleWheel`
+Dans `handleWheel` (L746), après `e.preventDefault()` :
+```typescript
+isInteractiveZoomRef.current = true;
+```
+
+### Étape 3 : Activer le verrou dans `handleTouchMove` (Pinch)
+Dans `handleTouchMove` (L810), après `e.preventDefault()` :
+```typescript
+isInteractiveZoomRef.current = true;
+```
+
+### Étape 4 : Court-circuiter le `useLayoutEffect` Aiming Global
+Dans le `useLayoutEffect` (L508), **après** le garde `isFirstRender` (L517-520) et **avant** le bloc de calcul (L522), ajouter :
+```typescript
+// Skip if zoom was driven by interactive gesture (wheel/pinch) —
+// applyInlineAiming already handled the scroll correction in direct-DOM.
+if (isInteractiveZoomRef.current) {
+  lastScaleRef.current = scale;
+  isInteractiveZoomRef.current = false;
+  return;
+}
+```
+
+### Pourquoi le reset se fait ICI et pas dans les handlers ?
+Le verrou reste `true` tant que React n'a pas committé la nouvelle valeur de `scale`. C'est **uniquement** dans le `useLayoutEffect` (qui se déclenche au commit) que l'on sait que l'état React est synchronisé — c'est donc le seul endroit sûr pour réarmer le verrou à `false`. Le prochain zoom via boutons (qui ne touche pas à `isInteractiveZoomRef`) passera normalement par l'Aiming Global.
+
+---
+
+## Résumé des Modifications
+
+| # | Fichier | Ligne | Action |
+|---|---------|-------|--------|
+| 1 | `PdfViewer.tsx` | ~393 | Ajouter `const isInteractiveZoomRef = useRef(false);` |
+| 2 | `PdfViewer.tsx` | ~748 | Ajouter `isInteractiveZoomRef.current = true;` dans `handleWheel` |
+| 3 | `PdfViewer.tsx` | ~812 | Ajouter `isInteractiveZoomRef.current = true;` dans `handleTouchMove` |
+| 4 | `PdfViewer.tsx` | ~521 | Court-circuit dans `useLayoutEffect` avec reset du verrou |

@@ -392,6 +392,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
   // Sprint 2.6: Stable Zoom - Keep center fixed
   const lastScaleRef = useRef(scale);
   const isFirstRender = useRef(true);
+  const isInteractiveZoomRef = useRef(false); // Verrou: true pendant wheel/pinch, évite le jitter de l'Aiming Global
 
   // Navigation lock: suppresses IntersectionObserver page updates during programmatic scroll
   const navLockRef = useRef(false);
@@ -516,6 +517,13 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     // Skip stabilization on first render or when scale is restored via App
     if (isFirstRender.current) {
       lastScaleRef.current = scale;
+      return;
+    }
+
+    // Si le zoom vient du pinch ou de la molette, il est déjà traité en temps réel par applyInlineAiming (direct-DOM).
+    if (isInteractiveZoomRef.current) {
+      lastScaleRef.current = scale;
+      isInteractiveZoomRef.current = false; // Réarmement pour les boutons de zoom externes
       return;
     }
 
@@ -746,6 +754,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     const handleWheel = (e: WheelEvent) => {
       if (e.ctrlKey) {
         e.preventDefault();
+        isInteractiveZoomRef.current = true;
 
         const zoomFactor = 1 - e.deltaY * 0.003;
         const oldScale = scaleRef.current;
@@ -756,7 +765,8 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
         if (cameraRef.current) {
           cameraRef.current.style.transform = `scale(${newScale})`;
         }
-        applyInlineAiming(oldScale, newScale, e.clientX, e.clientY);
+        const rect = containerRef.current!.getBoundingClientRect();
+        applyInlineAiming(oldScale, newScale, rect.left + rect.width / 2, rect.top + rect.height / 2);
 
         // Debounced commit: sync React state after gesture settles (80ms)
         if (wheelCommitTimerRef.current !== null) {
@@ -809,6 +819,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     const handleTouchMove = (e: TouchEvent) => {
       if (e.touches.length === 2 && initialPinchDistance.current !== null) {
         e.preventDefault();
+        isInteractiveZoomRef.current = true;
 
         const currentDistance = getDistance(e.touches);
         const ratio = currentDistance / initialPinchDistance.current;
@@ -1010,7 +1021,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
         />
 
         {/* Sprint 2 Refactoring: Padding is extracted outside of the scaled element */}
-        <div id="pdf-spacing-wrapper" style={{ padding: '100dvh 100vw' }}>
+        <div id="pdf-spacing-wrapper" style={{ padding: '100dvh 100%' }}>
           <div
             ref={cameraRef}
             id="pdf-camera"

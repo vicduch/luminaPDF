@@ -2323,3 +2323,35 @@ Modifications :
 4. **Validation :** Build TypeScript (tsc) réussi.
 
 **Résultat :** ✅ Navigation tablette fiabilisée, déblocage 2D fluide avec pinch-to-zoom stable et interactif.
+
+---
+
+## 2026-02-20 — Phase 4B : Hotfix Scrollbar Gap & Wheel Zoom Aiming
+
+### Tâche : Correctifs express post-audit
+
+**Fichiers modifiés:** `src/components/PdfViewer.tsx`
+
+**Modifications apportées:**
+1. **Padding `100vw` → `100%` :** L'unité `vw` incluait la scrollbar dans son calcul, créant une bande vide à droite. Remplacement par `100%` qui exclut nativement la scrollbar.
+2. **Wheel Zoom Aiming :** Le zoom au scroll-wheel ciblait `e.clientX/Y` (position du curseur), ce qui était incohérent avec le Ctrl+Wheel qui vise le centre du viewport. L'appel `applyInlineAiming` utilise désormais `rect.left + rect.width / 2` et `rect.top + rect.height / 2` pour ancrer au centre de la fenêtre.
+3. **Validation :** Build TypeScript (tsc) réussi.
+
+**Résultat :** ✅ Scrollbar alignée, zoom wheel centré sur le viewport.
+
+---
+
+## 2026-02-20 — Hotfix : Verrou Anti-Jitter Zoom Interactif
+
+### Tâche : Court-circuit de l'Aiming Global pendant wheel/pinch
+
+**Fichiers modifiés:** `src/components/PdfViewer.tsx`
+
+**Modifications apportées:**
+1. **Déclaration `isInteractiveZoomRef` :** Nouveau `useRef(false)` ajouté après `isFirstRender`, servant de verrou booléen indiquant si le dernier changement de `scale` provient d'un geste interactif (molette ou pinch).
+2. **Activation dans `handleWheel` :** `isInteractiveZoomRef.current = true` posé juste après `e.preventDefault()`.
+3. **Activation dans `handleTouchMove` (pinch) :** `isInteractiveZoomRef.current = true` posé juste après `e.preventDefault()`.
+4. **Court-circuit dans `useLayoutEffect` (Aiming Global) :** Bloc ajouté après le guard `isFirstRender` : si le verrou est `true`, on synchronise `lastScaleRef` et on réinitialise le verrou à `false` avant de `return` immédiatement — court-circuitant ainsi l'aiming par rAF qui causait le sursaut d'un frame lors du commit React.
+5. **Validation :** Build TypeScript (tsc) réussi.
+
+**Résultat :** ✅ Jitter éliminé pour le wheel et le pinch. L'Aiming Global reste actif pour les boutons de la toolbar.
