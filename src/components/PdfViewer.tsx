@@ -1040,7 +1040,13 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
         />
 
         {/* Sprint 2 Refactoring: Padding is extracted outside of the scaled element */}
-        <div id="pdf-spacing-wrapper" style={{ padding: '100dvh 100%' }}>
+        {/* Phase 4D: Dynamic padding compensates for scale() visual overflow (origin 0,0 grows right/down) */}
+        <div id="pdf-spacing-wrapper" style={{
+          paddingTop: '100dvh',
+          paddingLeft: '100%',
+          paddingRight: `calc(100% + ${pageDimensions.width * Math.max(0, scale - 1)}px)`,
+          paddingBottom: `calc(100dvh + ${pageDimensions.height * Math.max(0, scale - 1)}px)`,
+        }}>
           <div
             ref={cameraRef}
             id="pdf-camera"
