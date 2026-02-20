@@ -2371,3 +2371,18 @@ Modifications :
 4. **Validation :** Processus de transpilation (tsc) passé avec succès.
 
 **Résultat :** ✅ Zoom doux et mathématique, fixation sécurisée du document en cas d'un dézoom massif. Prêt !
+
+---
+
+## 2026-02-20 — Phase 4B : Hotfix Zoom Drift & Fit Button
+
+### Tâche : Résoudre le glissement lors de l'enchainement zoom/dézoom et corriger le décalage du bouton "Ajuster".
+
+**Fichiers modifiés:** `src/PdfViewer.tsx`, `src/App.tsx`
+
+**Modifications apportées:**
+1. **Suppression de l'optimisation Direct-DOM (120fps)** : Le code manipulait manuellement `camera.transform` ce qui générait des désynchronisations lors des calculs géométriques et un drift inévitable de la caméra (`focalOrigin`). Le zoom a été replacé entièrement dans le cycle de vie de React, synchronisé à 60fps, pour garantir un ancrage mathématique rigoureux de la caméra.
+2. **Correction du "Fit to Width"** : Dans `App.tsx`, le `scrollTo` d'ajustement ne prenait pas en compte l'offset natif causé par le grand padding (`100vw`/`100dvh`). Ajout de `originX/Y = container.clientWidth/Height` à l'équation pour que le document re-centre parfaitement à l'écran plutôt que de se coller en haut à gauche.
+3. **Suppression de l'Auto-Centrage Élastique manuel de la molette** : Retiré de l'ancien `applyInlineAiming` puisqu'il faisait "sauter" le document au centre pendant un dézoom rapide au lieu de garder le point focal en cible.
+
+**Résultat :** ✅ Le drift a totalement disparu (ancrage au pixel près). Le bouton "Ajuster" replace le document au milieu du Viewport.

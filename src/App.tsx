@@ -272,21 +272,10 @@ function App() {
 
             // Reposition after scale update:
             // continuous -> keep current page in view
-            // paged -> keep centered camera behavior
+            // paged -> handled perfectly by the Global Aiming Engine in PdfViewer.tsx
             requestAnimationFrame(() => requestAnimationFrame(() => {
-                const container = pdfViewerRef.current?.containerRef?.current;
-                const content = pdfViewerRef.current?.contentRef?.current;
                 if (scrollMode === ScrollMode.CONTINUOUS && pdfViewerRef.current) {
                     pdfViewerRef.current.scrollToPage(pageNumber);
-                    return;
-                }
-
-                if (container && content) {
-                    container.scrollTo({
-                        left: (content.scrollWidth / 2) - (container.clientWidth / 2),
-                        top: (content.scrollHeight / 2) - (container.clientHeight / 2),
-                        behavior: 'instant'
-                    });
                 }
             }));
         }
