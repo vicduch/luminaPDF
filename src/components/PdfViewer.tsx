@@ -393,6 +393,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
   const lastScaleRef = useRef(scale);
   const isFirstRender = useRef(true);
   const isInteractiveZoomRef = useRef(false); // Verrou: true pendant wheel/pinch, évite le jitter de l'Aiming Global
+  const initialCenterState = useRef<{ file: any, done: boolean }>({ file: null, done: false });
 
   // Navigation lock: suppresses IntersectionObserver page updates during programmatic scroll
   const navLockRef = useRef(false);
@@ -442,9 +443,13 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     const container = containerRef.current;
     if (!container || !file || numPages === 0 || allPagesDimensions.size === 0) return;
 
+    if (initialCenterState.current.file === file && initialCenterState.current.done) return;
+    initialCenterState.current = { file, done: true };
+
     // Double rAF ensures the layout is painted and dimensions are stable before measuring
-    requestAnimationFrame(() => requestAnimationFrame(() => centerDocument()));
-  }, [file, numPages, allPagesDimensions.size, centerDocument]);
+    requestAnimationFrame(() => requestAnimationFrame(() => centerDocument(1)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [file, numPages, allPagesDimensions.size]);
 
   // Sprint 2.11: Stabilize scroll position when changing scroll mode
   const lastScrollModeRef = useRef(scrollMode);
@@ -555,9 +560,23 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       const distanceY = viewCenterY - focalOriginY;
 
       // 4. Update viewport position natively based on scale transformation
+      let newScrollLeft = scrollLeft + distanceX * (ratio - 1);
+      let newScrollTop = scrollTop + distanceY * (ratio - 1);
+
+      // Elastic Auto-Centering for Fit Modes
+      const docWidth = content.scrollWidth * scale; // Native dimension * current global scale
+      const docHeight = content.scrollHeight * scale;
+
+      if (docWidth <= container.clientWidth) {
+        newScrollLeft = focalOriginX + docWidth / 2 - container.clientWidth / 2;
+      }
+      if (docHeight <= container.clientHeight) {
+        newScrollTop = focalOriginY + docHeight / 2 - container.clientHeight / 2;
+      }
+
       container.scrollTo({
-        left: scrollLeft + distanceX * (ratio - 1),
-        top: scrollTop + distanceY * (ratio - 1),
+        left: newScrollLeft,
+        top: newScrollTop,
         behavior: 'instant'
       });
     });
@@ -710,24 +729,23 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
   // Inline aiming: correct scroll position to keep viewport center stable after scale change.
   // Runs synchronously inside gesture handlers to avoid 1-frame drift.
   // Also syncs lastScaleRef so the useLayoutEffect Aiming Engine skips (no-op) on React commit.
-  const applyInlineAiming = useCallback((oldScale: number, newScale: number, originX: number, originY: number) => {
+  const applyInlineAiming = useCallback((oldScale: number, newScale: number, originX: number, originY: number, preMutationCameraRect: DOMRect) => {
     const container = containerRef.current;
-    const camera = cameraRef.current;
-    if (!container || !camera) return;
+    const content = contentRef.current;
+    if (!container || !content) return;
 
     lastScaleRef.current = newScale;
 
     // Use native coordinates relative to the viewport
     const containerRect = container.getBoundingClientRect();
-    const cameraRect = camera.getBoundingClientRect();
 
     // Mouse coordinates relative to the container
     const mouseX = originX - containerRect.left;
     const mouseY = originY - containerRect.top;
 
-    // Camera top-left coordinates relative to the container
-    const cameraX = cameraRect.left - containerRect.left;
-    const cameraY = cameraRect.top - containerRect.top;
+    // Camera top-left coordinates relative to the container (the focal origin) BEFORE mutation
+    const cameraX = preMutationCameraRect.left - containerRect.left;
+    const cameraY = preMutationCameraRect.top - containerRect.top;
 
     // Distance from the camera's original top-left to the mouse
     const distanceX = mouseX - cameraX;
@@ -737,8 +755,8 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
 
     // To keep the mouse anchored on the same point of the scaled content,
     // we must adjust the scroll position by the change in distance caused by the scalar ratio.
-    const newScrollLeft = container.scrollLeft + distanceX * (ratio - 1);
-    const newScrollTop = container.scrollTop + distanceY * (ratio - 1);
+    let newScrollLeft = container.scrollLeft + distanceX * (ratio - 1);
+    let newScrollTop = container.scrollTop + distanceY * (ratio - 1);
 
     container.scrollTo({
       left: newScrollLeft,
@@ -756,9 +774,12 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
         e.preventDefault();
         isInteractiveZoomRef.current = true;
 
-        const zoomFactor = 1 - e.deltaY * 0.003;
+        const zoomFactor = Math.exp(-e.deltaY * 0.0015);
         const oldScale = scaleRef.current;
         const newScale = Math.max(0.1, Math.min(8.0, oldScale * zoomFactor));
+
+        // Capture camera dimensions BEFORE mutation
+        const preMutationCameraRect = cameraRef.current!.getBoundingClientRect();
 
         // Direct DOM write — bypasses React reconciliation entirely
         scaleRef.current = newScale;
@@ -766,7 +787,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
           cameraRef.current.style.transform = `scale(${newScale})`;
         }
         const rect = containerRef.current!.getBoundingClientRect();
-        applyInlineAiming(oldScale, newScale, rect.left + rect.width / 2, rect.top + rect.height / 2);
+        applyInlineAiming(oldScale, newScale, rect.left + container.clientWidth / 2, rect.top + container.clientHeight / 2, preMutationCameraRect);
 
         // Debounced commit: sync React state after gesture settles (80ms)
         if (wheelCommitTimerRef.current !== null) {
@@ -826,6 +847,9 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
         const oldScale = scaleRefTouch.current;
         const newScale = Math.max(0.1, Math.min(8.0, initialPinchScale.current * ratio));
 
+        // Capture camera dimensions BEFORE mutation
+        const preMutationCameraRect = cameraRef.current!.getBoundingClientRect();
+
         // Direct DOM write — bypasses React reconciliation entirely
         scaleRefTouch.current = newScale;
         scaleRef.current = newScale;
@@ -834,7 +858,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
         }
         const barycenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
         const barycenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        applyInlineAiming(oldScale, newScale, barycenterX, barycenterY);
+        applyInlineAiming(oldScale, newScale, barycenterX, barycenterY, preMutationCameraRect);
       }
     };
 

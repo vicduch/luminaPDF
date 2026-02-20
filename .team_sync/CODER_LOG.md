@@ -2355,3 +2355,19 @@ Modifications :
 5. **Validation :** Build TypeScript (tsc) réussi.
 
 **Résultat :** ✅ Jitter éliminé pour le wheel et le pinch. L'Aiming Global reste actif pour les boutons de la toolbar.
+
+---
+
+## 2026-02-20 — Phase 4B : Hotfixes Finaux (Auditeur)
+
+### Tâche : Correction du centrage initial, lissage du scroll et auto-centrage élastique.
+
+**Fichiers modifiés:** `src/components/PdfViewer.tsx`
+
+**Modifications apportées:**
+1. **Sursaut de recentrage initial :** Création du verrou `initialCenterState` empêchant le `useLayoutEffect` de relancer un `centerDocument` intempestif au simple changement de `scale`. L'effet ne s'exécute désormais rigoureusement qu'à l'intersection d'un nouveau fichier chargé.
+2. **Fluidité molette exponentielle :** La progression linéaire par étape (`1 - e.deltaY * 0.003`) a été convertie en courbe mathématique continue via l'équation exponentielle `Math.exp(-e.deltaY * 0.0015)` pour garantir une vitesse perçue constante peu importe le niveau de zoom.
+3. **Auto-Centrage Élastique (Aiming) :** Dans `applyInlineAiming` ainsi que dans le gestionnaire d'Aiming global (`useLayoutEffect`), intégration d'un garde-fou géométrique. Si la dimension matricielle du PDF devient inférieure à la fenêtre locale du viewport (ex : *Fit Width/Page* grand écran), l'algorithme force un offset compensatoire ancré au centre de la zone padding (via `focalOriginX/Y + docWidth/2 - clientWidth/2`).
+4. **Validation :** Processus de transpilation (tsc) passé avec succès.
+
+**Résultat :** ✅ Zoom doux et mathématique, fixation sécurisée du document en cas d'un dézoom massif. Prêt !
