@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "projet": "LuminaPDF",
+  "cle": "LUM",
+  "prochain_id": 12,
+  "taches": [
+    {
+      "id": "LUM-1",
+      "statut": "a_valider",
+      "priorite": "haute",
+      "titre": "Aligner la documentation et les priorités sur la PWA tablette et PC",
+      "jalon": "ROADMAP.md#socle-de-reprise",
+      "contrat": "Documenter le démarrage réel, les invariants, les limites et les prochaines étapes ; conserver les archives et tous les changements préexistants. Aucune modification du fonctionnement, des dépendances ou du déploiement. Validation par confrontation au code, contrôle des liens locaux et vérification du backlog.",
+      "reste": [
+        "Confirmation finale de la documentation et de l'ordre proposé par l'utilisateur ; accord de commit et push reçu."
+      ],
+      "relais": {
+        "date": "2026-11-13",
+        "texte": "Prêt localement sur la base 6377389c83ad740e9a2f1dc96f6a0b011e8bb60f, index initial vide. Parcours direct, parent seul : documentation et planification sans artefact de tests ni délégation. README, CLAUDE, ARCHITECTURE réécrits ; ROADMAP et backlog créés ; bandeaux d'archive ajoutés à PROJECT_STATUS et TECH_ARCH. Sources et références locales relues, git diff --check ciblé et backlog.py check réussis. Empreintes des changements suivis/non suivis préexistants identiques avant/après. Preuves de type et construction du bilan initial conservées, non rejouées pour des modifications documentaires seules. LUM-2 a ensuite été réalisé et ses docs alignées. L'utilisateur a autorisé les deux commits et leur envoi vers le dépôt existant public vicduch/luminaPDF, branche master. Essais PWA réels et version hébergée encore inconnus ; aucun déploiement autorisé."
+      }
+    },
+    {
+      "id": "LUM-2",
+      "statut": "a_valider",
+      "priorite": "haute",
+      "titre": "Simplifier le lecteur PWA et fiabiliser les gestes dans les deux modes",
+      "jalon": "ROADMAP.md#lecture-pwa-fiable",
+      "contrat": "docs/features/LUM-2-lecteur-pwa.md — L'utilisateur demande une refonte simple et soignée, avec lecture continue et paginée à égalité. Tranche locale : barre du lecteur et gestes, sans changement de stockage ni services distants. Parcours protégé, tests indépendants en amont, worker UX, observation Edge et revue indépendante. Préserver les changements préexistants. Accord utilisateur reçu pour les deux commits LUM-1/2 et leur push vers vicduch/luminaPDF, branche master ; aucun déploiement autorisé.",
+      "reste": [
+        "Essai physique Xiaomi et acceptation utilisateur ; adresse et version de sa PWA encore inconnues. Aucun déploiement autorisé."
+      ],
+      "relais": {
+        "date": "2026-11-13",
+        "texte": "Première refonte intégrée par worker Sol high fresh, cinq fichiers source, delta tests vide ; tsc/build verts et gate parent OK. Harnais corrigé uniquement par auteur tests (contexts isolés, bypass SW explicite), assertions inchangées ; parent :6scénarios/7entrées verts. Edge graphique et contrastes textes clair/sombre observés. Revue Sol xhigh read-only, reprise après interruption d'un find trop large, zéro mutation :2majeurs et1mineur acceptés dans le périmètre (compteur immédiat, format des pages, clavier). Corrections App/PdfViewer intégrées par worker Sol high fresh : tsc vert, gate production OK, delta tests vide.11scénarios/13TAP verts après correction documentée du conducteur Enter/Espace par auteur tests (aucun oracle changé), build final vert en temporaire. Relecture ciblée acceptée, zéro finding et zéro mutation. Dernier défaut graphique reproduit puis corrigé par deux wrappers de visibilité dans App/PdfViewer, sans changement IA/services/stockage ni perte du brouillon. Deux nouveaux cas indépendants : Tab rouge avant, brouillon vert ; après13scénarios/16TAPverts zéro skip. Parent Edge graphique frais : décalage ancêtre0, portrait/paysage/360px entiers, clavier et sommaire observés ; tsc et build finaux verts. Docs alignées. Acceptation technique locale, reste acceptation utilisateur/Xiaomi. Accord utilisateur reçu pour les deux commits documentation/lecteur et leur push sur master du dépôt public vicduch/luminaPDF. Session01a1d6e6 en pause explicite sans aucune écriture depuis le relais, pour laisser le parent seul réaliser ces opérations ; nouveau relais avec HEAD requis avant reprise LUM-4. Aucun accord Git pour LUM-4, ni déploiement ou validation physique Xiaomi."
+      }
+    },
+    {
+      "id": "LUM-3",
+      "statut": "a_faire",
+      "priorite": "haute",
+      "titre": "Examiner les données et clés exposées avant une nouvelle diffusion PWA",
+      "jalon": "ROADMAP.md#lecture-pwa-fiable",
+      "contrat": "Examiner sans recopier de valeurs les variables embarquées et les appels IA/cloud. Définir les restrictions et protections nécessaires avant diffusion, sans connexion distante, rotation de clé, dépense ni déploiement implicites. Cadrage protégé pour toute correction ; les essais locaux de lecture restent possibles sans services distants."
+    },
+    {
+      "id": "LUM-4",
+      "statut": "a_faire",
+      "priorite": "haute",
+      "titre": "Conserver la progression et les annotations sur chaque appareil",
+      "jalon": "ROADMAP.md#conservation-et-autonomie",
+      "contrat": "Après qualification de la lecture, examiner les données existantes puis cadrer en parcours protégé les corrections nécessaires. Ne pas promettre la sauvegarde actuelle des annotations : aucun raccordement actif n'a été trouvé. Prouver conservation après réouverture et traitement des PDF homonymes et des erreurs de stockage, sans effacement ni migration non autorisés. Ne pas ajouter de synchronisation entre appareils."
+    },
+    {
+      "id": "LUM-5",
+      "statut": "a_faire",
+      "priorite": "moyenne",
+      "titre": "Rendre vérifiable la lecture des PDF déjà importés hors ligne",
+      "jalon": "ROADMAP.md#conservation-et-autonomie",
+      "contrat": "Examiner les déclarations concurrentes du worker PDF et le cache PWA, puis borner une correction si nécessaire. La preuve attendue est une réouverture réelle hors ligne après redémarrage sur tablette et PC, sans effacer les données ; publier les limites plutôt que déclarer une autonomie générale non testée."
+    },
+    {
+      "id": "LUM-6",
+      "statut": "a_faire",
+      "priorite": "moyenne",
+      "titre": "Protéger les parcours de lecture validés contre les régressions",
+      "jalon": "ROADMAP.md#lecture-pwa-fiable",
+      "contrat": "À partir des comportements retenus par LUM-2, choisir les contrôles minimaux utiles (cohérence du code, construction et preuves ciblées sur la lecture). Confier les nouveaux artefacts de tests à un auteur indépendant selon vd-pi. Traiter séparément le bruit des sorties générées suivies, sans nettoyage ou reformatage des changements préexistants ni nouvelle dépendance par principe."
+    },
+    {
+      "id": "LUM-7",
+      "statut": "idees",
+      "titre": "Sécuriser Electron avant tout usage ou diffusion de cette variante",
+      "contrat": "Variante secondaire, non requise pour les PWA. Configuration actuelle trop permissive ; reprendre le cadrage protégé et la règle historique de deux reviewers si son usage est demandé. Aucune diffusion autorisée par ce classement."
+    },
+    {
+      "id": "LUM-8",
+      "statut": "idees",
+      "titre": "Optimiser le poids des miniatures si leur coût est gênant"
+    },
+    {
+      "id": "LUM-9",
+      "statut": "idees",
+      "titre": "Afficher simultanément le sommaire et l'IA sur grand écran"
+    },
+    {
+      "id": "LUM-10",
+      "statut": "idees",
+      "titre": "Étudier une synchronisation PC et tablette si elle devient nécessaire",
+      "contrat": "Choisir les données, les règles de conflit, la confidentialité et les coûts avant d'étendre les services cloud. Ce n'est pas une capacité actuelle validée."
+    },
+    {
+      "id": "LUM-11",
+      "statut": "idees",
+      "titre": "Alimenter réellement le chat IA avec le contenu du PDF",
+      "contrat": "Le texte de page n'est pas alimenté dans le parcours inspecté. Cadrer l'envoi de données et les coûts avant tout appel ou évolution."
+    }
+  ]
+}

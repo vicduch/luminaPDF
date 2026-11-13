@@ -1,5 +1,7 @@
 # PROJECT_STATUS.md
 
+> **Archive — remplacée comme suivi actif le 13 novembre 2026.** Le cap est désormais dans [ROADMAP.md](../ROADMAP.md) et les états des travaux uniquement dans [backlog.json](../backlog.json). Les mentions « stable », « déployé » et « 120fps » ci-dessous sont historiques, pas des validations actuelles. Voir [README.md](../README.md) pour les contrôles réellement exécutés. Le contenu antérieur est conservé sans clôture implicite de ses chantiers.
+
 ## Informations projet
 - **Nom :** LuminaPDF
 - **Type :** Reconstruction (Rebirth)

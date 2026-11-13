@@ -1,5 +1,7 @@
 # TECH_ARCH.md
 
+> **Archive technique — 13 novembre 2026.** La référence actuelle est [ARCHITECTURE.md](../ARCHITECTURE.md). Les architectures et chiffres de performance ci-dessous sont historiques, pas des validations actuelles. Ce document est conservé pour l'historique, pas pour reconstruire l'ancien moteur.
+
 ## Stack technique (Existante & Normalisée)
 
 | Composant | Technologie | Version |

@@ -1,88 +1,70 @@
-# 🏗️ LuminaPDF - Architecture & Workspace
+# Architecture actuelle de LuminaPDF
 
-## 📂 Structure du Workspace
+Description issue du code local au 13 novembre 2026, base `6377389` avec la refonte locale du lecteur LUM-2 et les autres changements préexistants conservés. Les gestes physiques sur appareil restent à valider. Ce document décrit l'implémentation ; il ne certifie ni ses performances ni sa diffusion.
 
-```
-luminapdf/
-├── src/                        # Dossier source principal
-│   ├── index.tsx               # Point d'entrée React
-│   ├── components/             # Composants UI & Moteur Rendu
-│   │   ├── PdfViewer.tsx       # 🧠 CERVEAU : Orchestrateur Scroll/Zoom
-│   │   ├── TileLayer.tsx       # 🧱 GESTIONNAIRE : Grille de tuiles
-│   │   ├── PDFTile.tsx         # 🖼️ UNITÉ : Canvas individuel
-│   │   ├── OverviewLayer.tsx   # 🌫️ FOND : Image basse résolution (sécurité)
-│   │   ├── Toolbar.tsx         # UI : Contrôles (Zoom, Thèmes)
-│   │   └── ... (AiPanel, etc.)
-│   ├── utils/                  # Logique Métier & Maths
-│   │   ├── TileManager.ts      # 📐 MATHS : Calcul géométrie tuiles
-│   │   ├── RenderPool.ts       # 🧵 THREADS : Gestionnaire Web Workers
-│   │   ├── CoordinateSystem.ts # 🌐 SYSTÈME : Conversions Screen ↔ World
-│   │   ├── ThemeManager.ts     # 🎨 PALETTES : Définitions Couleurs/Thèmes
-│   │   └── pdfRenderUtils.ts   # PDF.js helpers
-│   ├── hooks/                  # Custom Hooks (Logique d'État)
-│   │   ├── useZoom.ts          # 🔍 Logique Zoom (Molette/Boutons)
-│   │   ├── useDebounce.ts      # ⏱️ Stabilisation des valeurs
-│   │   └── ... (Mobile gestures)
-│   ├── workers/                # Code Isolé (Off-Main-Thread)
-│   │   └── pdf.worker.ts       # ⚙️ MOTEUR : Rendu + Colorisation
-│   ├── services/               # Services Externes
-│   │   ├── storage.ts          # Persistance (localStorage)
-│   │   └── ... (Google Drive, AI)
-│   └── types.ts                # Définitions TypeScript globales
-├── electron/                   # Main process Electron
-├── public/                     # Assets statiques (sample.pdf)
-└── ... (Config Vite, TS, etc.)
+## Application et composants
+
+La même application web sert la PWA sur tablette et PC. Electron ajoute une fenêtre de bureau ; il n'est pas nécessaire à l'usage PWA.
+
+```text
+src/index.tsx — montage React et enregistrement du service worker
+└─ App.tsx — document, page, zoom, thèmes, annotations et progression
+   ├─ Toolbar.tsx — commandes essentielles et panneau d'outils superposé
+   ├─ RecentFiles.tsx — bibliothèque locale et accès aux intégrations
+   ├─ PdfViewer.tsx — Document react-pdf, géométrie et navigation
+   │  ├─ useReaderGestures — arbitre tactile et zoom ancré
+   │  ├─ OutlinePanel — hors caméra
+   │  └─ #pdf-spacing-wrapper — espacements hors transformation
+   │     └─ #pdf-camera — scale(scale), origine 0 0
+   │        └─ #pdf-workspace — dimensions natives du document
+   │           └─ #pdf-scale-layer — colonne de pages
+   │              └─ LazyPage → Page react-pdf + AnnotationLayer
+   ├─ AiPanel.tsx — chat Gemini facultatif
+   └─ ReadingProgressBar.tsx
 ```
 
-## 🧠 Rôles & Responsabilités
+La pile déclarée est React 19, TypeScript 5.8, Vite 6, Tailwind CSS 3.4, `react-pdf` 10 et `pdfjs-dist` 5.4.296. Les versions verrouillées sont dans `package-lock.json`, pas dans les anciens tableaux de `.team_sync/`.
 
-### 1. Le Cerveau (`src/components/PdfViewer.tsx`)
-- Point central de l'application.
-- Gère l'état global du document : `scale`, `scrollPosition`, `pageNumber`.
-- Utilise un "Virtualizer" pour ne rendre que les pages visibles.
-- Diffuse la **Géométrie Live** (pour le CSS) et la **Qualité Debounced** (pour le chargement) aux enfants.
+## Rendu, zoom et navigation
 
-### 2. Le Maçon (`src/components/TileLayer.tsx`)
-- Reçoit la géométrie et le numéro de page.
-- Interroge `TileManager` : *"Quelles tuiles sont visibles ici ?"*
-- Gère le cycle de vie des tuiles : Montage, Démontage, Mise en cache.
-- Instancie les composants `PDFTile`.
+- **Géométrie** : chaque page garde ses dimensions natives. Le zoom courant transforme toute la caméra ; les espacements extérieurs ménagent la zone de déplacement, avec compensation du débordement à droite et en bas.
+- **Qualité** : `useDebounce(scale, 180)` produit `debouncedScale`. `LazyPage` capture si possible un clone du canevas avant de mettre à jour `committedScale`, qui détermine `qualityDpr`. `<Page>` garde une largeur native fixe et reçoit ce facteur dans `devicePixelRatio`. Le clone disparaît après le rendu correspondant.
+- **Mode continu** : les emplacements de toutes les pages sont présents dans une colonne ; `IntersectionObserver` décide du rendu de leur contenu avec une marge de 2000 px. Un observateur distinct déclenche le suivi de la page active, réconcilié d'après la géométrie centrale du lecteur, y compris après le verrou temporaire de navigation.
+- **Mode paginé** : seule la page courante est instanciée. À l'ajustement, un glissement horizontal change au plus une page au relâchement ; le maintien n'accélère plus la pagination. Un document agrandi se déplace sans changer de page. Le changement de format portrait/paysage conserve l'ajustement, sans écraser le zoom manuel.
+- **État et gestes** : `useReaderGestures.ts` arbitre un doigt/deux doigts, pan, pincement et Ctrl+molette. Le pan utilise le défilement natif ; le pincement reste ancré au milieu des doigts et Ctrl+molette au curseur. Le changement de document/mode et les interruptions annulent le geste. Aucune mesure actuelle ne prouve une fréquence de 60 ou 120 images/s.
+- **Navigation** : `scrollToPage` est le passage commun pour barre, clavier, sommaire, progression et liens internes ; `fitPage` demande l'ajustement. Le centrage utilise les dimensions natives de `contentRef` et l'origine réelle de la caméra, jamais `container.scrollWidth` comme dimensions monde. Les dimensions PDF sont associées au fichier pour ignorer les callbacks périmés.
+- **Commandes** : les deux modes sont directement accessibles. Les réglages secondaires sont dans un panneau non modal qui ne déplace pas le PDF ; Escape ferme et restitue le focus. Les raccourcis restent utilisables depuis les boutons, sans voler la saisie et les interactions natives des champs/listes.
+- **Panneaux auxiliaires fermés** : les appelants de `AiPanel` et `OutlinePanel` appliquent un wrapper `display:none` fermé / `display:contents` ouvert. Leurs contrôles fermés ne participent plus au focus ni au défilement d'un ancêtre ; les composants restent montés pour conserver leur état. Le sommaire reste dans `Document`, hors caméra.
 
-### 3. L'Usine (`src/utils/RenderPool.ts` & `src/workers/`)
-- Maintient un pool de N Workers (adapté au CPU).
-- Dispatch les jobs de rendu (`renderTile`) vers le worker le moins chargé.
-- Gère l'annulation des jobs obsolètes (quand on scrolle vite).
+Il n'y a plus de tuiles, de niveaux de détail discrets, de pool de workers personnalisé ou de protocole `renderTile`.
 
-### 4. Le Peintre (`src/utils/ThemeManager.ts`)
-- Fournit les palettes de couleurs exactes pour chaque thème.
-- Ces palettes sont envoyées aux Workers pour que les pixels soient colorés *avant* d'arriver au thread principal.
+## Thèmes
 
-## 🔄 Flux de Données (Data Flow)
+`src/utils/ThemeManager.ts` définit les palettes et variables CSS de l'interface. Les pages PDF utilisent le filtre SVG `feColorMatrix` de `ThemeFilterDefs` dans `PdfViewer.tsx`. La recolorisation n'est pas effectuée dans un worker. `OutlinePanel` reste hors caméra pour que son positionnement fixe ne soit pas capturé par la transformation.
 
-```mermaid
-graph TD
-    User[Utilisateur] -->|Scroll / Zoom| Viewer[PdfViewer.tsx]
-    Viewer -->|Geometry (60fps)| TileLayer[TileLayer.tsx]
-    Viewer -->|Quality (Debounced)| TileLayer
-    
-    TileLayer -->|Get Visible| Manager[TileManager.ts]
-    Manager -->|Tile Specs| TileLayer
-    
-    TileLayer -->|Props| Tile[PDFTile.tsx]
-    Tile -->|Job Request| Pool[RenderPool.ts]
-    
-    Pool -->|PostMessage| Worker[pdf.worker.ts]
-    
-    subgraph Worker Thread
-    Worker -->|PDF.js Render| Raw[Canvas Raw]
-    Raw -->|Recolorize Pixel| Colored[ImageBitmap Final]
-    end
-    
-    Worker -->|Transfer| Tile
-    Tile -->|Draw| Canvas[Écran]
-```
+## Stockage et conservation des données
 
-## 🧩 Concepts Clés
-- **World Space** : Coordonnées virtuelles stables du document PDF.
-- **Screen Space** : Coordonnées pixels réelles dans la fenêtre navigateur.
-- **LOD (Level of Detail)** : Facteur de zoom discret (ex: 1.0, 1.5, 2.0) déterminant la netteté.
+`src/services/storage.ts` ouvre IndexedDB `LuminaDB` (version 1), avec les magasins `files` et `metadata`. Les PDF sont conservés comme blobs ; les métadonnées comprennent la page, le zoom, le mode de lecture et une miniature JPEG. `App.tsx` tente de sauvegarder la progression modifiée toutes les trois secondes et de la restaurer à l'ouverture par le parcours prévu. Cela ne garantit pas le dernier geste avant une fermeture immédiate.
+
+Les préférences de thème résident dans `localStorage`. Le stockage est propre à l'origine, au profil et à l'appareil ; Git et le cache PWA ne sauvegardent pas ces données. Aucun mécanisme indépendant de sauvegarde/restauration n'a été validé.
+
+**Annotations** : les contrôles de création, modification et suppression existent en mémoire React. Le modèle de métadonnées comporte un champ `annotations`, mais l'ouverture enregistre une liste vide et aucun raccordement de sauvegarde/restauration des annotations actives n'a été trouvé. Leur conservation n'est donc pas une capacité acquise. Les identifiants de fichiers locaux reposent couramment sur leur nom : le cas de deux PDF homonymes doit être examiné avant toute évolution de persistance.
+
+## Services facultatifs et exposition réseau
+
+- `geminiService.ts` appelle Gemini depuis le navigateur avec `VITE_GEMINI_API_KEY`. `AiPanel` peut construire un contexte de page, mais `currentPageText` n'est pas alimenté dans `App.tsx` : ne pas présenter le chat comme une lecture garantie du PDF.
+- `drive.ts` utilise Google Identity et le sélecteur Drive, avec une autorisation de lecture et les variables `VITE_GOOGLE_*`, pour importer un fichier.
+- `supabase.ts` contient l'authentification Google et des opérations sur les fichiers récents cloud. Leur présence ne prouve pas une synchronisation des PDF, de la progression ou des annotations entre appareils ; les règles et données du service distant n'ont pas été inspectées.
+- Les valeurs `VITE_*` utilisées par le client sont visibles dans la construction. Aucune correction de sécurité, rotation de clé, connexion distante ou dépense n'est autorisée par ce constat.
+
+## PWA, worker PDF et Electron
+
+`vite.config.ts` configure le manifeste (installation autonome, orientations libres, chemins à la racine) et Workbox pour le cache statique ; `src/index.tsx` enregistre le service worker immédiatement. `dev-dist/` contient encore des sorties générées suivies par Git ; leur retrait reste un travail séparé, sans suppression des données utilisateur.
+
+PDF.js utilise son worker standard, mais sa provenance est incohérente : `PdfViewer.tsx` importe le worker local avec `?url`, puis `App.tsx` déclare un worker via un CDN ; `generateThumbnail` prévoit également un repli CDN. La construction produit un fichier worker local, ce qui ne prouve pas qu'il sera utilisé au lancement. L'ouverture et la réouverture de PDF hors ligne demandent une vérification réelle, y compris après redémarrage de la PWA.
+
+`electron/main.cjs` charge le serveur en développement et `dist/index.html` en mode packagé. Les accès Node restent activés et l'isolation du contexte désactivée ; aucun preload actif ne limite ces accès. Le packaging Windows est déclaré, mais ni son fonctionnement ni sa sécurité n'ont été validés lors de la reprise.
+
+## Références et preuves
+
+[README.md](README.md) porte les commandes et les vérifications exécutées. [ROADMAP.md](ROADMAP.md) explique les résultats attendus ; [backlog.json](backlog.json) seul porte leur avancement. Les anciens schémas à tuiles et les promesses de performances de `.team_sync/TECH_ARCH.md` sont historiques, pas des instructions de reconstruction.
