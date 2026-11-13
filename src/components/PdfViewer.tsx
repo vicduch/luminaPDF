@@ -3,6 +3,7 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import { AppTheme, Annotation, ScrollMode } from '../types';
 import { ThemeVariant, getRenderPalette, getThemePalette } from '../utils/ThemeManager';
 import { useDebounce } from '../hooks/useDebounce';
+import { useReaderGestures } from '../hooks/useReaderGestures';
 import AnnotationLayer from './AnnotationLayer';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
@@ -16,6 +17,7 @@ export interface PdfViewerRef {
   containerRef: React.RefObject<HTMLDivElement | null>;
   contentRef: React.RefObject<HTMLDivElement | null>;
   scrollToPage: (page: number) => void;
+  fitPage: () => void;
 }
 
 interface PdfViewerProps {
@@ -128,6 +130,11 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
   const hasSnapshotRef = useRef(false);
   const latestRenderEpochRef = useRef(0);
   const [renderEpoch, setRenderEpoch] = useState(0);
+  const snapshotFrames = useRef<number[]>([]);
+  useEffect(() => () => {
+    snapshotFrames.current.forEach(cancelAnimationFrame);
+    snapshotFrames.current = [];
+  }, []);
 
   // When debouncedScale changes, capture the canvas (still valid — same element, not
   // unmounted) in useLayoutEffect BEFORE react-pdf's useEffect clears it.
@@ -175,15 +182,17 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
   // Clear snapshot only when the latest render epoch has completed.
   const handleRenderSuccess = useCallback(() => {
     const epochAtRenderStart = renderEpoch;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
+    snapshotFrames.current.forEach(cancelAnimationFrame);
+    snapshotFrames.current = [requestAnimationFrame(() => {
+      snapshotFrames.current = [requestAnimationFrame(() => {
+        snapshotFrames.current = [];
         if (epochAtRenderStart !== latestRenderEpochRef.current) return;
         if (snapshotContainerRef.current) {
           snapshotContainerRef.current.innerHTML = '';
         }
         hasSnapshotRef.current = false;
-      });
-    });
+      })];
+    })];
   }, [renderEpoch]);
 
   // Combined observer: tracks both visibility (active page) and render eligibility
@@ -325,7 +334,8 @@ const LazyPage = React.memo(LazyPageInner, (prev, next) => {
     && prev.themeVariant === next.themeVariant
     && prev.annotations === next.annotations
     && prev.isAnnotationMode === next.isAnnotationMode
-    && prev.annotationColor === next.annotationColor;
+    && prev.annotationColor === next.annotationColor
+    && prev.onVisible === next.onVisible;
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -359,14 +369,6 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
   // Keep SD snapshot visible longer; trigger HD after gesture settles.
   const debouncedScale = useDebounce(scale, 180);
 
-  // Mobile OS detection for adaptive workspace (Android/iOS/iPadOS only — not Windows touchscreens)
-  const isMobileOS = useMemo(() => {
-    if (typeof window === 'undefined') return false;
-    const ua = navigator.userAgent;
-    return /Android/i.test(ua) || /iPad|iPhone|iPod/.test(ua) ||
-      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPadOS
-  }, []);
-
   // Sprint Perf-A: Pre-filter annotations per page to avoid O(n) re-renders
   const emptyAnnotations: Annotation[] = useMemo(() => [], []);
   const annotationsByPage = useMemo(() => {
@@ -386,209 +388,169 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
   const contentRef = useRef<HTMLDivElement>(null);
   const cameraRef = useRef<HTMLDivElement>(null);
   const [pageDimensions, setPageDimensionsInternal] = useState({ width: 612, height: 792 });
-  const [allPagesDimensions, setAllPagesDimensions] = useState<Map<number, { width: number, height: number }>>(new Map());
+  const emptyDimensions = useMemo(() => new Map<number, { width: number; height: number }>(), []);
+  const [documentDimensions, setDocumentDimensions] = useState({ file: null as any, pages: emptyDimensions });
+  const allPagesDimensions = documentDimensions.file === file ? documentDimensions.pages : emptyDimensions;
+  const fileRef = useRef(file);
+  const scrollModeRef = useRef(scrollMode);
+  useLayoutEffect(() => {
+    fileRef.current = file;
+    scrollModeRef.current = scrollMode;
+  }, [file, scrollMode]);
   const [containerDims, setContainerDims] = useState({ width: 0, height: 0 });
 
-  // Sprint 2.6: Stable Zoom - Keep center fixed
   const lastScaleRef = useRef(scale);
-  const isFirstRender = useRef(true);
-  const isInteractiveZoomRef = useRef(false); // Verrou: true pendant wheel/pinch, évite le jitter de l'Aiming Global
-  const initialCenterState = useRef<{ file: any, done: boolean }>({ file: null, done: false });
-
-  // Navigation lock: suppresses IntersectionObserver page updates during programmatic scroll
   const navLockRef = useRef(false);
+  const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fitPendingRef = useRef(false);
+  const [fitRequest, setFitRequest] = useState(0);
+  const previousLayoutRef = useRef({ file: null as any, mode: scrollMode, page: pageNumber, ready: false, width: 0, height: 0, pageWidth: 0, pageHeight: 0, fit: 1 });
+  const currentPageDimensions = allPagesDimensions.get(pageNumber) || pageDimensions;
+  const fitScale = containerDims.width && containerDims.height
+    ? Math.max(0.1, Math.min(8, Math.min(
+      (containerDims.width - 16) / currentPageDimensions.width,
+      (containerDims.height - 16) / currentPageDimensions.height,
+    ))) : 1;
 
-  // Initialize isFirstRender after the first layout cycle
-  useEffect(() => {
-    isFirstRender.current = false;
+  const worldDimensions = useMemo(() => {
+    if (scrollMode !== ScrollMode.CONTINUOUS) return allPagesDimensions.get(pageNumber) || pageDimensions;
+    let width = 0;
+    let height = 0;
+    for (let page = 1; page <= numPages; page++) {
+      const dimensions = allPagesDimensions.get(page) || pageDimensions;
+      width = Math.max(width, dimensions.width);
+      height += dimensions.height + (page > 1 ? 32 : 0);
+    }
+    return { width, height };
+  }, [scrollMode, pageNumber, numPages, allPagesDimensions, pageDimensions]);
+
+  // Relire la géométrie à la libération du verrou, même si le scroll s'est arrêté.
+  const reconcileVisiblePage = useCallback(() => {
+    const container = containerRef.current;
+    const camera = cameraRef.current;
+    if (!container || !camera || fileRef.current !== file || scrollModeRef.current !== scrollMode ||
+      scrollMode !== ScrollMode.CONTINUOUS || !numPages) return;
+    const viewport = container.getBoundingClientRect();
+    const worldY = (viewport.top + container.clientHeight / 2 - camera.getBoundingClientRect().top) / scale;
+    let top = 0;
+    let nearestPage = 1;
+    let nearestDistance = Infinity;
+    for (let page = 1; page <= numPages; page++) {
+      const bottom = top + (allPagesDimensions.get(page) || pageDimensions).height;
+      const distance = Math.max(top - worldY, worldY - bottom, 0);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestPage = page;
+      }
+      top = bottom + 32;
+    }
+    setPageNumber?.(nearestPage);
+  }, [file, scrollMode, numPages, scale, allPagesDimensions, pageDimensions, setPageNumber]);
+  const reconcileVisiblePageRef = useRef(reconcileVisiblePage);
+  useLayoutEffect(() => { reconcileVisiblePageRef.current = reconcileVisiblePage; }, [reconcileVisiblePage]);
+
+  const lockNavigation = useCallback(() => {
+    navLockRef.current = true;
+    if (navTimerRef.current !== null) clearTimeout(navTimerRef.current);
+    navTimerRef.current = setTimeout(() => {
+      navLockRef.current = false;
+      navTimerRef.current = null;
+      reconcileVisiblePageRef.current();
+    }, 300);
   }, []);
 
-  // Sprint 2.7: Initial Centering on File Load - Invariant Workspace Center
-  const centerDocument = useCallback((targetPage?: number) => {
+  // Origine réelle de la caméra + dimensions natives du workspace, jamais la zone de scroll.
+  const centerDocument = useCallback((targetPage: number = pageNumber) => {
     const container = containerRef.current;
     const content = contentRef.current;
-    if (!container || !content) return;
-
-    const pageToCenter = targetPage !== undefined ? targetPage : pageNumber;
-
-    // If restoring a reading position in continuous mode, scroll to that page
-    if (scrollMode === ScrollMode.CONTINUOUS && pageToCenter > 1) {
-      const gap = 32; // gap-8 = 2rem = 32px
-      let targetTop = 0;
-
-      for (let i = 1; i < pageToCenter; i++) {
-        const dims = allPagesDimensions.get(i);
-        if (dims) targetTop += dims.height + gap;
+    const camera = cameraRef.current;
+    if (!container || !content || !camera) return;
+    const rect = camera.getBoundingClientRect();
+    const viewport = container.getBoundingClientRect();
+    let top = 0;
+    if (scrollMode === ScrollMode.CONTINUOUS) {
+      for (let page = 1; page < targetPage; page++) {
+        top += (allPagesDimensions.get(page) || pageDimensions).height + 32;
       }
-
-      // Apply scale since the content is scaled
-      targetTop *= scale;
-
-      container.scrollTo({
-        left: (container.clientWidth / 2) + (content.scrollWidth * scale / 2),
-        top: (container.clientHeight) + targetTop,
-        behavior: 'instant'
-      });
-    } else {
-      // Default: center on the workspace geometric center using native dimensions plus the padding offset
-      container.scrollTo({
-        left: (container.clientWidth / 2) + (content.scrollWidth * scale / 2),
-        top: (container.clientHeight / 2) + (content.scrollHeight * scale / 2),
-        behavior: 'instant'
-      });
     }
-  }, [scrollMode, pageNumber, scale, allPagesDimensions]);
+    const dimensions = allPagesDimensions.get(targetPage) || pageDimensions;
+    const worldY = scrollMode === ScrollMode.CONTINUOUS ? top + dimensions.height / 2 : content.offsetHeight / 2;
+    container.scrollLeft += rect.left + content.offsetWidth * scale / 2 - viewport.left - container.clientWidth / 2;
+    container.scrollTop += rect.top + worldY * scale - viewport.top - container.clientHeight / 2;
+  }, [scrollMode, pageNumber, scale, allPagesDimensions, pageDimensions]);
 
+  const navigateFromGesture = useCallback((page: number) => {
+    lockNavigation();
+    setPageNumber?.(page);
+  }, [lockNavigation, setPageNumber]);
+
+  const { pendingZoomRef, cancelGesture } = useReaderGestures({
+    containerRef, cameraRef, file, scrollMode, scale, fitScale, pageNumber, numPages,
+    isAnnotationMode, onScaleChange, onNavigate: navigateFromGesture,
+  });
+
+  // Une seule correction par commit : navigation/ajustement OU point d'ancrage du zoom.
   useLayoutEffect(() => {
     const container = containerRef.current;
-    if (!container || !file || numPages === 0 || allPagesDimensions.size === 0) return;
-
-    if (initialCenterState.current.file === file && initialCenterState.current.done) return;
-    initialCenterState.current = { file, done: true };
-
-    // Double rAF ensures the layout is painted and dimensions are stable before measuring
-    requestAnimationFrame(() => requestAnimationFrame(() => centerDocument(1)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file, numPages, allPagesDimensions.size]);
-
-  // Sprint 2.11: Stabilize scroll position when changing scroll mode
-  const lastScrollModeRef = useRef(scrollMode);
-  const pageNumberAtModeChangeRef = useRef(pageNumber);
-
-  // Track pageNumber changes separately
-  useEffect(() => {
-    pageNumberAtModeChangeRef.current = pageNumber;
-  }, [pageNumber]);
-
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    const content = contentRef.current;
-
-    // Only act when scrollMode actually changes
-    if (!container || !content || scrollMode === lastScrollModeRef.current) {
-      return;
+    const camera = cameraRef.current;
+    if (!container || !camera) return;
+    const previous = previousLayoutRef.current;
+    const ready = allPagesDimensions.size > 0;
+    const navigation = previous.file !== file || previous.mode !== scrollMode ||
+      (!previous.ready && ready) || (scrollMode !== ScrollMode.CONTINUOUS && previous.page !== pageNumber);
+    const resized = previous.width !== containerDims.width || previous.height !== containerDims.height;
+    const pageResized = scrollMode === ScrollMode.PAGED && previous.mode === scrollMode &&
+      (previous.pageWidth !== currentPageDimensions.width || previous.pageHeight !== currentPageDimensions.height);
+    // Un changement de format conserve l'ajustement, mais jamais au détriment d'un zoom manuel.
+    const keepFit = (resized || pageResized) && previous.file === file && previous.ready &&
+      scale === lastScaleRef.current && !pendingZoomRef.current && Math.abs(lastScaleRef.current - previous.fit) < 0.02;
+    const initialFit = (previous.file !== file || !previous.ready) && ready && scale === 1;
+    previousLayoutRef.current = { file, mode: scrollMode, page: pageNumber, ready,
+      width: containerDims.width, height: containerDims.height,
+      pageWidth: currentPageDimensions.width, pageHeight: currentPageDimensions.height, fit: fitScale };
+    if ((initialFit || keepFit) && containerDims.width && Math.abs(scale - fitScale) > 0.001) {
+      fitPendingRef.current = true;
+      pendingZoomRef.current = null;
+      onScaleChange?.(fitScale);
+    } else if ((navigation && ready) || fitPendingRef.current || (resized && ready)) {
+      lockNavigation();
+      fitPendingRef.current = false;
+      pendingZoomRef.current = null;
+      centerDocument(pageNumber);
+    } else if (scale !== lastScaleRef.current) {
+      const rect = camera.getBoundingClientRect();
+      const viewport = container.getBoundingClientRect();
+      const x = viewport.left + container.clientWidth / 2;
+      const y = viewport.top + container.clientHeight / 2;
+      const anchor = pendingZoomRef.current || {
+        worldX: (x - rect.left) / lastScaleRef.current,
+        worldY: (y - rect.top) / lastScaleRef.current,
+        clientX: x, clientY: y,
+      };
+      container.scrollLeft += rect.left + anchor.worldX * scale - anchor.clientX;
+      container.scrollTop += rect.top + anchor.worldY * scale - anchor.clientY;
+      pendingZoomRef.current = null;
     }
-
-    const targetPage = pageNumberAtModeChangeRef.current;
-    lastScrollModeRef.current = scrollMode;
-
-    const stabilizePosition = () => {
-      if (scrollMode === ScrollMode.CONTINUOUS && targetPage > 0 && allPagesDimensions.size > 0) {
-        // Calculate the vertical offset of the target page
-        // Account for: padding-top (container height) + cumulative page heights + gaps
-        const paddingTop = container.clientHeight;
-        const gap = 32; // gap-8 = 2rem = 32px
-        let targetTop = paddingTop;
-
-        for (let i = 1; i < targetPage; i++) {
-          const dims = allPagesDimensions.get(i);
-          if (dims) {
-            targetTop += dims.height + gap;
-          }
-        }
-
-        // Center horizontally, scroll to page top vertically. Padding is top offset
-        container.scrollTo({
-          left: (container.clientWidth / 2) + (content.scrollWidth * scale / 2),
-          top: (container.clientHeight) + targetTop,
-          behavior: 'instant'
-        });
-      } else if (scrollMode === ScrollMode.PAGED) {
-        // When switching to paged mode, center the document using padding offset
-        container.scrollTo({
-          left: (container.clientWidth / 2) + (content.scrollWidth * scale / 2),
-          top: (container.clientHeight / 2) + (content.scrollHeight * scale / 2),
-          behavior: 'instant'
-        });
-      }
-    };
-
-    // Wait for layout to stabilize
-    requestAnimationFrame(() => requestAnimationFrame(stabilizePosition));
-  }, [scrollMode, allPagesDimensions]);
-
-  // Sprint 2.6: Stable Zoom - Invariant Center Projection (Aiming Engine)
-  // Uses rAF batching to prevent jitter from rapid touchpad events
-  const aimingRafRef = useRef<number | null>(null);
-
-  useLayoutEffect(() => {
-    const container = containerRef.current;
-    const content = contentRef.current;
-    if (!container || !content || scale === lastScaleRef.current) {
-      lastScaleRef.current = scale;
-      return;
-    }
-
-    // Skip stabilization on first render or when scale is restored via App
-    if (isFirstRender.current) {
-      lastScaleRef.current = scale;
-      return;
-    }
-
-    // Capture current state before rAF
-    const { scrollLeft, scrollTop, clientWidth, clientHeight } = container;
-    const oldScale = lastScaleRef.current;
-    const ratio = scale / oldScale;
     lastScaleRef.current = scale;
+  }, [file, scrollMode, pageNumber, scale, allPagesDimensions, fitRequest, centerDocument, lockNavigation, pendingZoomRef, containerDims.width, containerDims.height, currentPageDimensions.width, currentPageDimensions.height, fitScale, onScaleChange]);
 
-    // Cancel any pending correction to avoid stacking
-    if (aimingRafRef.current !== null) {
-      cancelAnimationFrame(aimingRafRef.current);
-    }
+  useLayoutEffect(() => () => {
+    if (navTimerRef.current !== null) clearTimeout(navTimerRef.current);
+    navTimerRef.current = null;
+    navLockRef.current = false;
+  }, [file, scrollMode]);
 
-    aimingRafRef.current = requestAnimationFrame(() => {
-      aimingRafRef.current = null;
-
-      // 1. Pivot of expansion is physical origin: 0 0. 
-      // This is shifted by the #pdf-spacing-wrapper padding: container.clientWidth and container.clientHeight
-      const camera = cameraRef.current;
-      const focalOriginX = camera?.offsetLeft || container.clientWidth;
-      const focalOriginY = camera?.offsetTop || container.clientHeight;
-
-      // 2. We find the distance between the visual center and the focal origin
-      const viewCenterX = scrollLeft + clientWidth / 2;
-      const viewCenterY = scrollTop + clientHeight / 2;
-
-      // 3. Vector distance
-      const distanceX = viewCenterX - focalOriginX;
-      const distanceY = viewCenterY - focalOriginY;
-
-      // 4. Update viewport position natively based on scale transformation
-      let newScrollLeft = scrollLeft + distanceX * (ratio - 1);
-      let newScrollTop = scrollTop + distanceY * (ratio - 1);
-
-      // Elastic Auto-Centering for Fit Modes
-      const docWidth = content.scrollWidth * scale; // Native dimension * current global scale
-      const docHeight = content.scrollHeight * scale;
-
-      if (docWidth <= container.clientWidth) {
-        newScrollLeft = focalOriginX + docWidth / 2 - container.clientWidth / 2;
-      }
-      if (docHeight <= container.clientHeight) {
-        newScrollTop = focalOriginY + docHeight / 2 - container.clientHeight / 2;
-      }
-
-      container.scrollTo({
-        left: newScrollLeft,
-        top: newScrollTop,
-        behavior: 'instant'
-      });
-    });
-  }, [scale, scrollMode]);
-
-  // Sprint 1.1: Stable callback for page visibility tracking
-  // Suppressed during programmatic navigation to avoid feedback loops
-  const handlePageVisible = useCallback((pn: number) => {
-    if (navLockRef.current) return; // Locked during keyboard navigation
-    if (setPageNumber) {
-      setPageNumber(pn);
-    }
-  }, [setPageNumber]);
+  // Les notifications anciennes ne doivent pas modifier le document ou le mode courant.
+  const handlePageVisible = useCallback(() => {
+    if (navLockRef.current || fileRef.current !== file || scrollModeRef.current !== scrollMode) return;
+    reconcileVisiblePageRef.current();
+  }, [file, scrollMode]);
 
   // Sprint Perf-A: Stable document load handler (prevents re-triggering on re-renders)
   const pdfDocRef = useRef<any>(null);
 
   const handleDocumentLoad = useCallback(async (pdf: any) => {
+    if (fileRef.current !== file) return;
     pdfDocRef.current = pdf;
     onLoadSuccess?.({ numPages: pdf.numPages });
     try {
@@ -601,7 +563,8 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
         dimsMap.set(index, { width: viewport.width, height: viewport.height });
       }));
 
-      setAllPagesDimensions(dimsMap);
+      if (pdfDocRef.current !== pdf || fileRef.current !== file) return;
+      setDocumentDimensions({ file, pages: dimsMap });
 
       const firstPageDims = dimsMap.get(1) || { width: 612, height: 792 };
       setPageDimensionsInternal(firstPageDims);
@@ -610,50 +573,41 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     } catch (err) {
       console.warn('[PdfViewer] Failed to load document details:', err);
     }
-  }, [onLoadSuccess, onPageDimensions]);
+  }, [onLoadSuccess, onPageDimensions, file]);
 
-  // Navigate to a page: works in both continuous (scroll) and paged (swap) modes.
-  const scrollToPage = useCallback((targetPage: number) => {
-    // Always update the page number state — essential for paged mode and toolbar display
-    if (setPageNumber) setPageNumber(targetPage);
+  // Navigation explicite commune à la barre, au clavier et aux liens PDF.
+  const scrollToPage = useCallback((page: number) => {
+    if (!numPages || !Number.isFinite(page)) return;
+    const target = Math.max(1, Math.min(numPages, Math.trunc(page)));
+    cancelGesture();
+    lockNavigation();
+    setPageNumber?.(target);
+    if (scrollMode === ScrollMode.CONTINUOUS || target === pageNumber) centerDocument(target);
+  }, [numPages, pageNumber, setPageNumber, scrollMode, centerDocument, lockNavigation, cancelGesture]);
 
-    const container = containerRef.current;
-    if (!container) return;
+  const fitPage = useCallback(() => {
+    cancelGesture();
+    pendingZoomRef.current = null;
+    fitPendingRef.current = true;
+    onScaleChange?.(fitScale);
+    setFitRequest(request => request + 1);
+  }, [fitScale, onScaleChange, pendingZoomRef, cancelGesture]);
 
-    // Engage navigation lock to prevent IntersectionObserver interference
-    navLockRef.current = true;
-    setTimeout(() => { navLockRef.current = false; }, 300);
+  useImperativeHandle(ref, () => ({ containerRef, contentRef, scrollToPage, fitPage }));
 
-    // In paged mode the target page will be rendered by the state update above
-    const pageEl = container.querySelector(`[data-page-number="${targetPage}"]`) as HTMLElement | null;
-    if (!pageEl) return;
-
-    const pageRect = pageEl.getBoundingClientRect();
-    const containerRect = container.getBoundingClientRect();
-
-    const pageTopInScroll = container.scrollTop + (pageRect.top - containerRect.top);
-    const pageHeightInScroll = pageRect.height;
-    const viewportHeight = container.clientHeight;
-
-    const targetTop = pageTopInScroll - (viewportHeight - pageHeightInScroll) / 2;
-    container.scrollTop = targetTop;
-  }, [setPageNumber]);
-
-  useImperativeHandle(ref, () => ({
-    containerRef,
-    contentRef,
-    scrollToPage
-  }));
+  useEffect(() => {
+    onPageDimensions?.(currentPageDimensions);
+  }, [currentPageDimensions.width, currentPageDimensions.height, onPageDimensions]);
 
   // Track container dimensions for "Fit to Width"
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || !onContainerDimensions) return;
+    if (!container) return;
 
     const observer = new ResizeObserver((entries) => {
       if (entries[0]) {
         const { width, height } = entries[0].contentRect;
-        onContainerDimensions({ width, height });
+        onContainerDimensions?.({ width, height });
         setContainerDims({ width, height });
       }
     });
@@ -693,10 +647,11 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
 
       try {
         const pdf = pdfDocRef.current;
+        const sourceFile = fileRef.current;
         const dest = await pdf.getDestination(destName);
         if (dest) {
           const pageIndex = await pdf.getPageIndex(dest[0]);
-          scrollToPage(pageIndex + 1);
+          if (sourceFile === fileRef.current && pdfDocRef.current === pdf) scrollToPage(pageIndex + 1);
         }
       } catch (err) {
         console.warn('[PdfViewer] Failed to resolve destination:', destName, err);
@@ -707,384 +662,20 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     return () => container.removeEventListener('click', handleInternalLinkClick);
   }, [scrollToPage, setPageNumber]);
 
-  // Sprint 2.9: Pinch-to-Zoom via wheel event with ctrlKey
-  // Simplified to standard 60fps React state to prevent any zoom drift or jitter.
-  const scaleRef = useRef(scale);
-  scaleRef.current = scale;
-
-  const onScaleChangeRef = useRef(onScaleChange);
-  onScaleChangeRef.current = onScaleChange;
-
-  const scrollModeRef = useRef(scrollMode);
-  scrollModeRef.current = scrollMode;
-
-  const wheelThrottler = useRef<number | null>(null);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      if (e.ctrlKey) {
-        e.preventDefault();
-
-        const zoomFactor = Math.exp(-e.deltaY * 0.0015);
-        const oldScale = scaleRef.current;
-        const newScale = Math.max(0.1, Math.min(8.0, oldScale * zoomFactor));
-
-        // Update local ref to keep smooth calculation
-        scaleRef.current = newScale;
-
-        // Throttle React state updates to screen refresh rate (60fps)
-        if (wheelThrottler.current === null) {
-          wheelThrottler.current = requestAnimationFrame(() => {
-            onScaleChangeRef.current?.(scaleRef.current);
-            wheelThrottler.current = null;
-          });
-        }
-      }
-    };
-
-    container.addEventListener('wheel', handleWheel, { passive: false });
-    return () => {
-      container.removeEventListener('wheel', handleWheel);
-      if (wheelThrottler.current !== null) {
-        cancelAnimationFrame(wheelThrottler.current);
-      }
-    };
-  }, []); // Mounted once
-
-  // Sprint 2.10: Pinch-to-Zoom via touch events (touchscreen)
-  // Simplified to standard 60fps React state zoom synchronization.
-  const initialPinchDistance = useRef<number | null>(null);
-  const initialPinchScale = useRef<number>(scale);
-  const scaleRefTouch = useRef(scale);
-  scaleRefTouch.current = scale;
-
-  const onScaleChangeRefTouch = useRef(onScaleChange);
-  onScaleChangeRefTouch.current = onScaleChange;
-
-  const pinchThrottler = useRef<number | null>(null);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const getDistance = (touches: TouchList): number => {
-      if (touches.length < 2) return 0;
-      const dx = touches[0].clientX - touches[1].clientX;
-      const dy = touches[0].clientY - touches[1].clientY;
-      return Math.sqrt(dx * dx + dy * dy);
-    };
-
-    const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches.length === 2) {
-        initialPinchDistance.current = getDistance(e.touches);
-        initialPinchScale.current = scaleRefTouch.current;
-      }
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length === 2 && initialPinchDistance.current !== null) {
-        e.preventDefault();
-
-        const currentDistance = getDistance(e.touches);
-        const ratio = currentDistance / initialPinchDistance.current;
-        const newScale = Math.max(0.1, Math.min(8.0, initialPinchScale.current * ratio));
-
-        scaleRefTouch.current = newScale;
-
-        // Throttle React state updates to screen refresh rate (60fps)
-        if (pinchThrottler.current === null) {
-          pinchThrottler.current = requestAnimationFrame(() => {
-            onScaleChangeRefTouch.current?.(scaleRefTouch.current);
-            pinchThrottler.current = null;
-          });
-        }
-      }
-    };
-
-    const handleTouchEnd = () => {
-      initialPinchDistance.current = null;
-      if (pinchThrottler.current !== null) {
-        cancelAnimationFrame(pinchThrottler.current);
-        pinchThrottler.current = null;
-      }
-      // Ensure the final state resolves cleanly
-      requestAnimationFrame(() => {
-        onScaleChangeRefTouch.current?.(scaleRefTouch.current);
-      });
-    };
-
-    container.addEventListener('touchstart', handleTouchStart, { passive: false });
-    container.addEventListener('touchmove', handleTouchMove, { passive: false });
-    container.addEventListener('touchend', handleTouchEnd, { passive: true });
-
-    return () => {
-      container.removeEventListener('touchstart', handleTouchStart);
-      container.removeEventListener('touchmove', handleTouchMove);
-      container.removeEventListener('touchend', handleTouchEnd);
-    };
-  }, []); // Mounted once
-
-  // Sprint 4C & 4E: Elastic Swipe-to-Turn and Fast-Forward Hold (Tablets)
-  const touchStartX = useRef<number | null>(null);
-  const touchStartY = useRef<number | null>(null);
-  const swipeOffsetRef = useRef<number>(0);
-
-  // Fast-Forward Engine Refs
-  const fastForwardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const fastForwardIntervalRef = useRef<number>(400);
-  const hasFastForwardedRef = useRef<boolean>(false);
-
-  // Decoupled refs to avoid rebinding touch events 120 times a second
-  const latestSwipeStateRef = useRef({ pageNumber, numPages, isZoomed: scale > 1.05 });
-  const latestFuncsRef = useRef({ setPageNumber, centerDocument });
-
-  useLayoutEffect(() => {
-    latestSwipeStateRef.current = { pageNumber, numPages, isZoomed: scale > 1.05 };
-    latestFuncsRef.current = { setPageNumber, centerDocument };
-  });
-
-  // Preserve elastic offset vertically/horizontally during React re-renders (rapid page turns override transform inline style)
-  useLayoutEffect(() => {
-    if (scrollMode === ScrollMode.PAGED && swipeOffsetRef.current !== 0 && cameraRef.current) {
-      cameraRef.current.style.transform = `scale(${scale}) translateX(${swipeOffsetRef.current / scale}px)`;
-      cameraRef.current.style.transition = 'none'; // Ensure no snapping during rapid re-renders
-    }
-  });
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container || scrollMode !== ScrollMode.PAGED) return;
-
-    const stopFastForward = () => {
-      if (fastForwardTimerRef.current !== null) {
-        clearTimeout(fastForwardTimerRef.current);
-        fastForwardTimerRef.current = null;
-      }
-      fastForwardIntervalRef.current = 400; // Reset speed
-    };
-
-    const handleTouchStart = (e: TouchEvent) => {
-      // Only single-finger touches for swipe
-      if (e.touches.length === 1) {
-        touchStartX.current = e.touches[0].clientX;
-        touchStartY.current = e.touches[0].clientY;
-        swipeOffsetRef.current = 0;
-        hasFastForwardedRef.current = false;
-        stopFastForward();
-      }
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length !== 1 || touchStartX.current === null || touchStartY.current === null) return;
-
-      const currentX = e.touches[0].clientX;
-      const currentY = e.touches[0].clientY;
-      const dx = currentX - touchStartX.current;
-      const dy = currentY - touchStartY.current;
-
-      // Only engage if movement is predominantly horizontal
-      if (Math.abs(dx) > Math.abs(dy) * 1.5) {
-        let isAtLeftEdge = false;
-        let isAtRightEdge = false;
-
-        const tolerance = 5; // Minimal tolerance for edge detection
-        const { pageNumber: currPage, numPages: totPages, isZoomed } = latestSwipeStateRef.current;
-
-        // Detect edges based on unzoomed vs zoomed state
-        if (isZoomed) {
-          const currentPageEl = container.querySelector(`[data-page-number="${currPage}"]`) as HTMLElement | null;
-          if (currentPageEl) {
-            const pageRect = currentPageEl.getBoundingClientRect();
-            const containerRect = container.getBoundingClientRect();
-            isAtLeftEdge = pageRect.left >= containerRect.left - tolerance;
-            isAtRightEdge = pageRect.right <= containerRect.right + tolerance;
-          } else {
-            const { scrollLeft, scrollWidth, clientWidth } = container;
-            isAtLeftEdge = scrollLeft <= tolerance;
-            isAtRightEdge = scrollLeft + clientWidth >= scrollWidth - tolerance;
-          }
-        } else {
-          // If not zoomed, we are effectively always at the edges for horizontal turning
-          isAtLeftEdge = true;
-          isAtRightEdge = true;
-        }
-
-        // Pulling right while at left edge (intent: previous page)
-        if (dx > 0 && isAtLeftEdge && currPage > 1) {
-          e.preventDefault(); // Stop OS nav swipe
-          swipeOffsetRef.current = dx * 0.3; // Elastic friction
-        }
-        // Pulling left while at right edge (intent: next page)
-        else if (dx < 0 && isAtRightEdge && currPage < totPages) {
-          e.preventDefault(); // Stop OS nav swipe
-          swipeOffsetRef.current = dx * 0.3; // Elastic friction
-        }
-        else {
-          swipeOffsetRef.current = 0;
-          stopFastForward();
-        }
-
-        // Apply rendering of tension immediately for 120fps response
-        if (swipeOffsetRef.current !== 0 && cameraRef.current) {
-          const currentScale = cameraRef.current.style.transform.match(/scale\(([^)]+)\)/)?.[1] || '1';
-          cameraRef.current.style.transform = `scale(${currentScale}) translateX(${swipeOffsetRef.current / parseFloat(currentScale)}px)`;
-          cameraRef.current.style.transition = 'none'; // Lock 1:1 with finger
-        }
-
-        // Fast-Forward Engine: Trigger auto-turn if held beyond threshold
-        const TURN_THRESHOLD = 80;
-        if (Math.abs(swipeOffsetRef.current) > TURN_THRESHOLD) {
-          if (fastForwardTimerRef.current === null) {
-            // Initiate turbo recursive loop
-            const tick = () => {
-              hasFastForwardedRef.current = true;
-              const { pageNumber: currentP, numPages: totalP } = latestSwipeStateRef.current;
-              const { setPageNumber: setPageFn, centerDocument: centerDocFn } = latestFuncsRef.current;
-
-              const isNextPage = dx < 0;
-              const targetPage = isNextPage ? currentP + 1 : currentP - 1;
-
-              if (targetPage >= 1 && targetPage <= totalP) {
-                setPageFn?.(targetPage);
-                // Center new page silently under the translated viewport
-                requestAnimationFrame(() => requestAnimationFrame(() => centerDocFn(targetPage)));
-              }
-
-              // Speed calculates based on how hard they pull (dx)
-              const pullMultiplier = Math.max(1, Math.abs(dx) / 150);
-              // Accelerate: minimum 40ms per page (~25 pages/sec)
-              fastForwardIntervalRef.current = Math.max(40, (fastForwardIntervalRef.current * 0.85) / pullMultiplier);
-
-              fastForwardTimerRef.current = setTimeout(tick, fastForwardIntervalRef.current);
-            };
-
-            // First tick waits 400ms to differentiate normal swipe vs Hold gesture
-            fastForwardIntervalRef.current = 400;
-            fastForwardTimerRef.current = setTimeout(tick, fastForwardIntervalRef.current);
-          }
-        } else {
-          stopFastForward(); // Finger slipped back into safe zone
-        }
-      }
-    };
-
-    const handleTouchEnd = (e: TouchEvent) => {
-      if (touchStartX.current === null || touchStartY.current === null) return;
-
-      const touchEndX = e.changedTouches[0].clientX;
-      const dx = touchEndX - touchStartX.current;
-      const TURN_THRESHOLD = 80;
-
-      stopFastForward();
-
-      if (swipeOffsetRef.current !== 0) {
-        // Commited full single turn (quick swipe without holding 400ms)
-        if (!hasFastForwardedRef.current && Math.abs(dx) > TURN_THRESHOLD) {
-          const { pageNumber: currP, numPages: totP } = latestSwipeStateRef.current;
-          const { setPageNumber: setPFn, centerDocument: centerDFn } = latestFuncsRef.current;
-
-          const isNext = dx < 0;
-          const targetPage = isNext ? currP + 1 : currP - 1;
-
-          if (targetPage >= 1 && targetPage <= totP) {
-            setPFn?.(targetPage);
-            requestAnimationFrame(() => requestAnimationFrame(() => centerDFn(targetPage)));
-          }
-        }
-
-        // Snap back view regardless of turn status
-        if (cameraRef.current) {
-          cameraRef.current.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)';
-          const currentScale = cameraRef.current.style.transform.match(/scale\(([^)]+)\)/)?.[1] || '1';
-          cameraRef.current.style.transform = `scale(${currentScale})`; // removes translateX
-
-          setTimeout(() => {
-            if (cameraRef.current) {
-              cameraRef.current.style.transition = '';
-            }
-          }, 300);
-        }
-      }
-
-      touchStartX.current = null;
-      touchStartY.current = null;
-      swipeOffsetRef.current = 0;
-      hasFastForwardedRef.current = false;
-    };
-
-    container.addEventListener('touchstart', handleTouchStart, { passive: false });
-    container.addEventListener('touchmove', handleTouchMove, { passive: false });
-    container.addEventListener('touchend', handleTouchEnd, { passive: true });
-
-    return () => {
-      container.removeEventListener('touchstart', handleTouchStart);
-      container.removeEventListener('touchmove', handleTouchMove);
-      container.removeEventListener('touchend', handleTouchEnd);
-      stopFastForward();
-    };
-  }, [scrollMode]); // Empty dependencies + refs guarantees touch binds persist through all rapid page changes
-
-  // Auto Page-Fit: On tablet in paginated mode, fit page to viewport width
-  const userHasZoomedRef = useRef(false);
-  const lastAutoFitPageRef = useRef<number | null>(null);
-
-  // Track user-initiated zoom changes to avoid overriding their preference
-  useEffect(() => {
-    if (!isMobileOS) return;
-    // After auto-fit sets the scale, ignore that change; only flag manual zooms
-    if (lastAutoFitPageRef.current === pageNumber) {
-      lastAutoFitPageRef.current = null;
-      return;
-    }
-    userHasZoomedRef.current = true;
-  }, [scale]);
-
-  // Reset user zoom flag on page change (re-enable auto-fit for new page)
-  useEffect(() => {
-    userHasZoomedRef.current = false;
-  }, [pageNumber]);
-
-  useEffect(() => {
-    if (!isMobileOS) return;
-    if (scrollMode !== ScrollMode.PAGED) return;
-    if (userHasZoomedRef.current) return;
-
-    const container = containerRef.current;
-    if (!container) return;
-
-    const currentPageDims = allPagesDimensions.get(pageNumber);
-    if (!currentPageDims) return;
-
-    // No margin on mobile for perfect fit and no swipe shift
-    const fitWidth = container.clientWidth / currentPageDims.width;
-    const fitHeight = container.clientHeight / currentPageDims.height;
-    const fitScale = Math.min(fitWidth, fitHeight);
-
-    // Only auto-fit if there's a meaningful difference (>2%)
-    if (Math.abs(fitScale - scale) > 0.02) {
-      lastAutoFitPageRef.current = pageNumber;
-      onScaleChange?.(fitScale);
-    }
-  }, [isMobileOS, scrollMode, pageNumber, allPagesDimensions, onScaleChange, containerDims]);
-
   const isContinuous = scrollMode === ScrollMode.CONTINUOUS;
 
   return (
     <div
       ref={containerRef}
       className={`
-        w-full h-full overflow-auto outline-none transition-colors duration-300
-        cursor-grab active:cursor-grabbing scroll-smooth-tablet relative
+        w-full h-full overflow-auto outline-none relative
         pdf-viewer-container
       `}
       style={{
         backgroundColor: 'var(--lumina-app-bg)',
-        // Sprint Perf-D: Conditional touchAction to avoid swipe conflict
-        // PAGED: block pan-x for swipe gestures | CONTINUOUS: allow pan-x for scroll
-        touchAction: 'manipulation',
+        // Le pan natif garde son inertie ; le pincement appartient au lecteur.
+        touchAction: !isContinuous && scale <= fitScale * 1.02 && !isAnnotationMode ? 'pan-y' : 'pan-x pan-y',
+        overscrollBehavior: 'contain',
         WebkitOverflowScrolling: 'touch'
       }}
       onContextMenu={(e) => e.preventDefault()}
@@ -1097,26 +688,28 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
         onLoadSuccess={handleDocumentLoad}
         onItemClick={({ pageNumber: pg }: { pageNumber: number }) => scrollToPage(pg)}
         loading={<div className="p-10 text-gray-500 font-medium">Chargement du document...</div>}
-        error={<div className="p-10 text-red-500 font-medium">Erreur lors du chargement du PDF</div>}
+        error={<div className="p-10 text-red-500 font-medium">Impossible de charger ce PDF. Ouvrez un autre fichier avec la barre de lecture.</div>}
       >
         {/* OutlinePanel: OUTSIDE pdf-camera so fixed positioning works */}
-        <OutlinePanel
-          isOpen={isOutlineOpen}
-          onClose={() => onToggleOutline?.()}
-          onItemClick={({ pageNumber }: { pageNumber: number }) => {
-            scrollToPage(pageNumber);
-            if (setPageNumber) setPageNumber(pageNumber);
-          }}
-          theme={theme}
-        />
+        <div style={{ display: isOutlineOpen ? 'contents' : 'none' }}>
+          <OutlinePanel
+            isOpen={isOutlineOpen}
+            onClose={() => onToggleOutline?.()}
+            onItemClick={({ pageNumber }: { pageNumber: number }) => {
+              scrollToPage(pageNumber);
+            }}
+            theme={theme}
+          />
+        </div>
 
         {/* Sprint 2 Refactoring: Padding is extracted outside of the scaled element */}
         {/* Phase 4D: Dynamic padding compensates for scale() visual overflow (origin 0,0 grows right/down) */}
         <div id="pdf-spacing-wrapper" style={{
-          paddingTop: '100dvh',
-          paddingLeft: '100%',
-          paddingRight: `calc(100% + ${pageDimensions.width * Math.max(0, scale - 1)}px)`,
-          paddingBottom: `calc(100dvh + ${pageDimensions.height * Math.max(0, scale - 1)}px)`,
+          boxSizing: 'border-box',
+          width: containerDims.width * 2 + worldDimensions.width * scale,
+          height: containerDims.height * 2 + worldDimensions.height * scale,
+          paddingTop: containerDims.height,
+          paddingLeft: containerDims.width,
         }}>
           <div
             ref={cameraRef}
@@ -1137,8 +730,8 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                minWidth: 'fit-content',
-                minHeight: 'fit-content'
+                width: worldDimensions.width,
+                height: worldDimensions.height
               }}
             >
               <div id="pdf-scale-layer" className="flex-none flex flex-col items-center gap-8">

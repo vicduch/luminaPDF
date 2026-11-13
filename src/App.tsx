@@ -149,6 +149,7 @@ function App() {
             const selectedFile = e.target.files[0];
             const fileId = selectedFile.name;
             setFile(selectedFile);
+            setNumPages(0);
             setCurrentFileId(fileId);
             setPageNumber(1);
             setScale(1.0);
@@ -179,6 +180,7 @@ function App() {
 
     const handleOpenFile = useCallback(async (fileOrUrl: File | string, fileId?: string) => {
         setFile(fileOrUrl);
+        setNumPages(0);
         setIsViewerReady(false);
 
         // Set file ID for position tracking
@@ -259,48 +261,16 @@ function App() {
         }
     }, [handleOpenFile, recentFiles]);
     const handleFitToWidth = useCallback(() => {
-        if (containerDimensions.width && containerDimensions.height && pageDimensions.width && pageDimensions.height) {
-            // Mobile detection inside handleFitToWidth
-            const isMobileOS = /Android/i.test(navigator.userAgent) || /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        pdfViewerRef.current?.fitPage();
+    }, []);
 
-            const margin = isMobileOS ? 0 : 16;
-            const fitWidth = (containerDimensions.width - margin) / pageDimensions.width;
-            const fitHeight = (containerDimensions.height - margin) / pageDimensions.height;
-            const targetScale = Math.min(fitWidth, fitHeight);
-            setScale(targetScale);
+    const handleDocumentLoaded = useCallback((data: { numPages: number }) => {
+        setNumPages(data.numPages);
+    }, []);
 
-            // Reposition after scale update:
-            // continuous -> keep current page in view
-            // paged -> force recenter to the middle of the document
-            requestAnimationFrame(() => requestAnimationFrame(() => {
-                if (scrollMode === ScrollMode.CONTINUOUS && pdfViewerRef.current) {
-                    pdfViewerRef.current.scrollToPage(pageNumber);
-                    return;
-                }
-
-                const container = pdfViewerRef.current?.containerRef?.current;
-                const content = pdfViewerRef.current?.contentRef?.current;
-
-                if (container && content) {
-                    const docWidth = content.scrollWidth * targetScale;
-                    const docHeight = content.scrollHeight * targetScale;
-
-                    // The document origin is shifted by the 100vw/100dvh padding
-                    // Extract the actual DOM offsets just like the Aiming Engine does
-                    const camera = container.querySelector('#pdf-camera') as HTMLElement | null;
-                    const originX = camera ? camera.offsetLeft : container.clientWidth;
-                    const originY = camera ? camera.offsetTop : container.clientHeight;
-
-                    container.scrollTo({
-                        left: originX + (docWidth / 2) - (container.clientWidth / 2),
-                        top: originY + (docHeight / 2) - (container.clientHeight / 2),
-                        behavior: 'instant'
-                    });
-                }
-            }));
-        }
-    }, [containerDimensions.width, containerDimensions.height, pageDimensions.width, pageDimensions.height, scrollMode, pageNumber]);
+    const handleNavigate = useCallback((page: number) => {
+        pdfViewerRef.current?.scrollToPage(page);
+    }, []);
 
     const handleContainerDimensions = useCallback((dims: { width: number; height: number }) => {
         setContainerDimensions(dims);
@@ -517,34 +487,22 @@ function App() {
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            // Don't intercept shortcuts when typing in an input/textarea
+            // Préserver la saisie et les touches déjà traitées par les contrôles locaux.
             const target = e.target as HTMLElement;
-            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+            if (e.defaultPrevented || target.closest('input, textarea, select') || target.isContentEditable) return;
 
             // ── Page Navigation (unified behavior: paged and continuous) ──
             if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') {
                 e.preventDefault();
                 if (!file || numPages === 0) return;
-                setPageNumber(prev => {
-                    const newPage = Math.max(1, prev - 1);
-                    if (newPage !== prev && scrollMode === ScrollMode.CONTINUOUS && pdfViewerRef.current) {
-                        pdfViewerRef.current.scrollToPage(newPage);
-                    }
-                    return newPage;
-                });
+                handleNavigate(Math.max(1, pageNumber - 1));
                 return;
             }
 
             if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'PageDown') {
                 e.preventDefault();
                 if (!file || numPages === 0) return;
-                setPageNumber(prev => {
-                    const newPage = Math.min(numPages, prev + 1);
-                    if (newPage !== prev && scrollMode === ScrollMode.CONTINUOUS && pdfViewerRef.current) {
-                        pdfViewerRef.current.scrollToPage(newPage);
-                    }
-                    return newPage;
-                });
+                handleNavigate(Math.min(numPages, pageNumber + 1));
                 return;
             }
 
@@ -552,19 +510,13 @@ function App() {
             if (e.key === 'Home') {
                 e.preventDefault();
                 if (!file || numPages === 0) return;
-                setPageNumber(1);
-                if (scrollMode === ScrollMode.CONTINUOUS && pdfViewerRef.current) {
-                    pdfViewerRef.current.scrollToPage(1);
-                }
+                handleNavigate(1);
                 return;
             }
             if (e.key === 'End') {
                 e.preventDefault();
                 if (!file || numPages === 0) return;
-                setPageNumber(numPages);
-                if (scrollMode === ScrollMode.CONTINUOUS && pdfViewerRef.current) {
-                    pdfViewerRef.current.scrollToPage(numPages);
-                }
+                handleNavigate(numPages);
                 return;
             }
 
@@ -641,7 +593,7 @@ function App() {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [file, numPages, scrollMode, handleFitToWidth, handleToggleVariant, handleCycleTheme]);
+    }, [file, numPages, pageNumber, scrollMode, handleNavigate, handleFitToWidth, handleToggleVariant, handleCycleTheme]);
 
     // ═══════════════════════════════════════════════════════════════════════
     // RENDER
@@ -666,27 +618,25 @@ function App() {
                     pageNumber={pageNumber}
                     numPages={numPages}
                     theme={theme}
-                    onNavigate={setPageNumber}
+                    onNavigate={handleNavigate}
                 />
             )}
 
             {/* 1. Header / Toolbar */}
             {file && (
-                <div className="flex-none z-20 relative pt-1">
+                <div className="flex-none z-20 relative">
                     {/* Floating button to restore toolbar when hidden */}
                     {!isToolbarVisible && (
                         <button
                             onClick={() => setIsToolbarVisible(true)}
-                            className="absolute top-0 left-1/2 -translate-x-1/2 z-50
-                                w-10 h-5 flex items-center justify-center
-                                rounded-b-lg opacity-30 hover:opacity-100
-                                transition-all duration-200 hover:h-7"
+                            className="reader-restore absolute top-0 left-1/2 -translate-x-1/2 z-50"
                             style={{
                                 backgroundColor: 'var(--lumina-bg-secondary)',
                                 borderLeft: '1px solid var(--lumina-border)',
                                 borderRight: '1px solid var(--lumina-border)',
                                 borderBottom: '1px solid var(--lumina-border)',
                             }}
+                            aria-label="Afficher la barre de lecture"
                             title="Afficher la barre d'outils (H)"
                         >
                             <svg width="16" height="8" viewBox="0 0 16 8" fill="none">
@@ -707,7 +657,7 @@ function App() {
                         isOutlineOpen={isOutlineOpen}
                         isAnnotationMode={isAnnotationMode}
                         annotationColor={annotationColor}
-                        setPageNumber={setPageNumber}
+                        setPageNumber={handleNavigate}
                         setScale={setScale}
                         onFitToWidth={handleFitToWidth}
                         setTheme={setTheme}
@@ -763,7 +713,7 @@ function App() {
                                 onAddAnnotation={handleAddAnnotation}
                                 onUpdateAnnotation={handleUpdateAnnotation}
                                 onDeleteAnnotation={handleDeleteAnnotation}
-                                onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+                                onLoadSuccess={handleDocumentLoaded}
                                 onPageDimensions={setPageDimensions}
                                 onContainerDimensions={handleContainerDimensions}
                                 onScaleChange={setScale}
@@ -772,13 +722,15 @@ function App() {
                             />
                         </div>
 
-                        <AiPanel
-                            isOpen={isAiPanelOpen}
-                            onClose={() => setIsAiPanelOpen(false)}
-                            currentPageText={currentPageText}
-                            pdfMetadata={pdfMetadata}
-                            theme={theme}
-                        />
+                        <div style={{ display: isAiPanelOpen ? 'contents' : 'none' }}>
+                            <AiPanel
+                                isOpen={isAiPanelOpen}
+                                onClose={() => setIsAiPanelOpen(false)}
+                                currentPageText={currentPageText}
+                                pdfMetadata={pdfMetadata}
+                                theme={theme}
+                            />
+                        </div>
                     </div>
                 )}
             </div>
