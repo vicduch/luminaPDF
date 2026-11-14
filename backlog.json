@@ -2,7 +2,7 @@
   "version": 1,
   "projet": "LuminaPDF",
   "cle": "LUM",
-  "prochain_id": 12,
+  "prochain_id": 13,
   "taches": [
     {
       "id": "LUM-1",
@@ -44,11 +44,26 @@
     },
     {
       "id": "LUM-4",
-      "statut": "a_faire",
+      "statut": "a_valider",
       "priorite": "haute",
       "titre": "Conserver la progression et les annotations sur chaque appareil",
       "jalon": "ROADMAP.md#conservation-et-autonomie",
-      "contrat": "Après qualification de la lecture, examiner les données existantes puis cadrer en parcours protégé les corrections nécessaires. Ne pas promettre la sauvegarde actuelle des annotations : aucun raccordement actif n'a été trouvé. Prouver conservation après réouverture et traitement des PDF homonymes et des erreurs de stockage, sans effacement ni migration non autorisés. Ne pas ajouter de synchronisation entre appareils."
+      "contrat": "Brief docs/features/LUM-4-conservation.md : identité par contenu sha256, ouverture unique sans écrasement, restauration réelle, notes conservées par document, enregistrement à la sortie, stockage persistant et alertes, migration automatique sans perte, retrait confirmé. Pas de synchronisation entre appareils.",
+      "reste": [
+        "Essai utilisateur sur Xiaomi Pad 6 en PWA et sur PC : conversion de la bibliothèque réelle, homonymes, sortie en arrière-plan, page par page tactile.",
+        "Accord Git pour commit et push."
+      ],
+      "relais": {
+        "date": "2026-11-14",
+        "texte": "Prêt localement sur base 68b368c. Tests indépendants tests/storage.test.mjs + storage-cdp.mjs : 26 rouges fonctionnels avant, 26/26 verts après ; suites lecteur 16/16 ; tsc et build 0 (worker Sol high). Revue fresh Opus high (Sol en quota) : revue-acceptee, 4 mineurs + 1 suggestion reportés dans LUM-12 sur décision utilisateur (arrêt avant finitions). Contrôle Edge headless parent : homonymes distincts, réouverture à la page, alerte quota visible. Tests supplémentaires partiels non validés tests/storage-extra.test.mjs et tests/fixtures/storage-damaged-page.pdf laissés non suivis, hors commit. Pas de commit ni push."
+      }
+    },
+    {
+      "id": "LUM-12",
+      "statut": "a_faire",
+      "priorite": "moyenne",
+      "titre": "Finitions de la conservation locale après revue LUM-4",
+      "contrat": "Corriger les constats mineurs de la revue LUM-4 : document vide sans message si une page est illisible (PdfViewer attend toutes les dimensions) ; migration interrompue au premier échec au lieu de poursuivre fiche par fiche ; double alerte et alerte d'enregistrement réaffichée à chaque ouverture ; preuve tablette tactile page par page (pointer coarse) manquante. Option : repli SHA-256 moins gourmand en mémoire. Reprendre ou remplacer les tests partiels non validés tests/storage-extra.test.mjs et tests/fixtures/storage-damaged-page.pdf par un auteur de tests indépendant."
     },
     {
       "id": "LUM-5",
