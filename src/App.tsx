@@ -10,7 +10,7 @@
  * - Theme persistence
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { ViewMode, AppTheme, ScrollMode, Annotation, PdfMetadata } from './types';
 import Toolbar from './components/Toolbar';
 import PdfViewer, { PdfViewerRef } from './components/PdfViewer';
@@ -19,7 +19,8 @@ import RecentFiles from './components/RecentFiles';
 import ReadingProgressBar from './components/ReadingProgressBar';
 import { pdfjs } from 'react-pdf';
 import { applyTheme, getThemePalette, ThemeVariant, isDarkVariant } from './utils/ThemeManager';
-import { saveRecentFile, saveReadingPosition, getReadingPosition, getRecentFiles, getFileBlob, generateThumbnail, updateFileMetadata, RecentFileMetadata } from './services/storage';
+import { saveRecentFile, getFileMetadata, initializeStorage, getRecentFiles, getFileBlob, generateThumbnail, updateFileMetadata, RecentFileMetadata } from './services/storage';
+import { getFileId } from './utils/fileFingerprint';
 
 // Configure PDF.js worker via CDN (more reliable than local build sometimes)
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -136,6 +137,36 @@ function App() {
     const contentRefProxy = useRef<HTMLDivElement | null>(null);
     const dragCounterRef = useRef<number>(0);
 
+    const [isOpening, setIsOpening] = useState(false);
+    const [storageError, setStorageError] = useState<string | null>(null);
+    const [restorePage, setRestorePage] = useState<number | undefined>();
+    const [restoreZoom, setRestoreZoom] = useState(false);
+    const [documentSession, setDocumentSession] = useState(0);
+    const openingRef = useRef(0);
+    const restoredRef = useRef(false);
+    const readingStateRef = useRef<{
+        fileId: string; pageNumber: number; scale: number; scrollMode: ScrollMode; annotations: Annotation[];
+    } | null>(null);
+    const lastSavedRef = useRef('');
+    const reportStorageError = useCallback(() => {
+        setStorageError("Impossible d’enregistrer le document, la progression ou les notes sur cet appareil. La lecture reste possible ; conservez votre PDF et réessayez lorsque le stockage est disponible.");
+    }, []);
+
+    const flushReadingState = useCallback(() => {
+        const snapshot = readingStateRef.current;
+        if (!snapshot || !restoredRef.current) return;
+        const signature = JSON.stringify(snapshot);
+        if (signature === lastSavedRef.current) return;
+        void updateFileMetadata(snapshot.fileId, {
+            pageNumber: snapshot.pageNumber,
+            scale: snapshot.scale,
+            scrollMode: snapshot.scrollMode,
+            annotations: snapshot.annotations,
+        }).then(() => {
+            if (readingStateRef.current?.fileId === snapshot.fileId) lastSavedRef.current = signature;
+        }).catch(reportStorageError);
+    }, [reportStorageError]);
+
     // ═══════════════════════════════════════════════════════════════════════
     // ZOOM HANDLING (Disabled in Phase 0)
     // ═══════════════════════════════════════════════════════════════════════
@@ -144,104 +175,78 @@ function App() {
     // HANDLERS
     // ═══════════════════════════════════════════════════════════════════════
 
-    const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            const selectedFile = e.target.files[0];
-            const fileId = selectedFile.name;
-            setFile(selectedFile);
-            setNumPages(0);
-            setCurrentFileId(fileId);
-            setPageNumber(1);
-            setScale(1.0);
-            setIsViewerReady(false);
-
-            // Persist to recent files (generate thumbnail async)
-            const metadata: RecentFileMetadata = {
-                id: fileId,
-                name: selectedFile.name,
-                size: selectedFile.size,
-                type: selectedFile.type || 'application/pdf',
-                lastVisited: Date.now(),
-                pageNumber: 1,
-                scale: 1.0,
-                annotations: [],
-            };
-            saveRecentFile(selectedFile, metadata).then(async () => {
-                // Generate thumbnail in the background (non-blocking)
-                const thumb = await generateThumbnail(selectedFile);
-                if (thumb) {
-                    updateFileMetadata(fileId, { thumbnail: thumb }).catch(() => { });
-                }
-            }).catch(err =>
-                console.warn('[App] Failed to save recent file:', err)
-            );
+    const handleOpenFile = useCallback(async (selectedFile: File) => {
+        flushReadingState();
+        const session = ++openingRef.current;
+        restoredRef.current = false;
+        readingStateRef.current = null;
+        setIsOpening(true);
+        setNumPages(0);
+        setAnnotations([]);
+        setIsAnnotationMode(false);
+        let id: string | null = null;
+        let existing: RecentFileMetadata | null = null;
+        let canSave = true;
+        try {
+            await initializeStorage();
+        } catch {
+            reportStorageError();
         }
-    }, []);
-
-    const handleOpenFile = useCallback(async (fileOrUrl: File | string, fileId?: string) => {
-        setFile(fileOrUrl);
+        try {
+            id = await getFileId(selectedFile);
+            existing = await getFileMetadata(id);
+        } catch {
+            canSave = false; // Ne jamais remplacer une fiche dont la lecture a échoué.
+            reportStorageError();
+        }
+        if (session !== openingRef.current) return;
+        const restoredPage = existing?.pageNumber || 1;
+        const restoredScale = existing?.scale || 1;
+        const restoredMode = existing?.scrollMode === 'continuous' ? ScrollMode.CONTINUOUS : ScrollMode.PAGED;
+        const restoredNotes = existing?.annotations || [];
+        const metadata: RecentFileMetadata | null = id && canSave ? {
+            ...existing,
+            id, name: selectedFile.name, size: selectedFile.size,
+            type: selectedFile.type || 'application/pdf', lastVisited: Date.now(),
+            pageNumber: restoredPage, scale: restoredScale, scrollMode: restoredMode,
+            annotations: restoredNotes,
+        } : null;
+        // Les états du nouveau document sont publiés ensemble, après la lecture de sa fiche.
+        setFile(selectedFile);
+        setIsOpening(false);
         setNumPages(0);
         setIsViewerReady(false);
-
-        // Set file ID for position tracking
-        const id = fileId || (typeof fileOrUrl === 'string' ? fileOrUrl : fileOrUrl.name);
-        setCurrentFileId(id);
-
-        // 1. Restore reading position FIRST (before any overwrite)
-        let restoredPage = 1;
-        let restoredScale = 1.0;
-        let restoredScrollMode: ScrollMode | null = null;
-        let hasRestoredPosition = false;
-
-        if (id) {
-            try {
-                const savedPosition = await getReadingPosition(id);
-                if (savedPosition) {
-                    restoredPage = savedPosition.pageNumber;
-                    restoredScale = savedPosition.scale;
-                    if (savedPosition.scrollMode) {
-                        restoredScrollMode = savedPosition.scrollMode === 'continuous' ? ScrollMode.CONTINUOUS : ScrollMode.PAGED;
-                    }
-                    hasRestoredPosition = true;
-                    console.log('[App] Restored reading position:', savedPosition);
-                }
-            } catch (err) {
-                console.warn('[App] Failed to restore reading position:', err);
-            }
-        }
-
-        // 2. Apply restored (or default) position
+        setCurrentFileId(canSave ? id : null);
         setPageNumber(restoredPage);
         setScale(restoredScale);
-        if (restoredScrollMode !== null) {
-            setScrollMode(restoredScrollMode);
-        }
-
-        // 3. Persist File objects to recent files (preserving position data)
-        if (typeof fileOrUrl !== 'string' && fileOrUrl instanceof File) {
-            const metadata: RecentFileMetadata = {
-                id,
-                name: fileOrUrl.name,
-                size: fileOrUrl.size,
-                type: fileOrUrl.type || 'application/pdf',
-                lastVisited: Date.now(),
-                pageNumber: restoredPage,
-                scale: restoredScale,
-                annotations: [],
-            };
-            saveRecentFile(fileOrUrl, metadata).then(async () => {
-                // Generate thumbnail if not already present
-                const existing = recentFiles.find(f => f.id === id);
-                if (!existing?.thumbnail) {
-                    const thumb = await generateThumbnail(fileOrUrl as File);
-                    if (thumb) {
-                        updateFileMetadata(id, { thumbnail: thumb }).catch(() => { });
-                    }
+        setScrollMode(restoredMode);
+        setAnnotations(restoredNotes);
+        setRestoreZoom(!!existing);
+        setRestorePage(restoredPage);
+        setDocumentSession(session);
+        lastSavedRef.current = JSON.stringify({ fileId: id, pageNumber: restoredPage, scale: restoredScale, scrollMode: restoredMode, annotations: restoredNotes });
+        if (metadata) {
+            try {
+                await saveRecentFile(selectedFile, metadata);
+                if (!metadata.thumbnail) {
+                    const thumbnail = await generateThumbnail(selectedFile);
+                    if (thumbnail) await updateFileMetadata(metadata.id, { thumbnail, lastVisited: metadata.lastVisited });
                 }
-            }).catch(err =>
-                console.warn('[App] Failed to save recent file:', err)
-            );
+            } catch {
+                reportStorageError();
+            }
         }
+    }, [flushReadingState, reportStorageError]);
+
+    const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFile = e.target.files?.[0];
+        if (selectedFile) void handleOpenFile(selectedFile);
+        e.target.value = '';
+    }, [handleOpenFile]);
+
+    const handleRestored = useCallback(() => {
+        restoredRef.current = true;
+        setRestorePage(undefined);
     }, []);
 
     const handleOpenRecentFile = useCallback(async (fileId: string) => {
@@ -252,7 +257,7 @@ function App() {
                 const meta = recentFiles.find(f => f.id === fileId);
                 const name = meta?.name || fileId;
                 const file = new File([blob], name, { type: blob.type || 'application/pdf' });
-                handleOpenFile(file, fileId);
+                void handleOpenFile(file);
             } else {
                 console.warn('[App] File blob not found for:', fileId);
             }
@@ -319,7 +324,7 @@ function App() {
     // Annotation Handlers
     const handleAddAnnotation = useCallback((page: number, x: number, y: number) => {
         const newAnnotation: Annotation = {
-            id: crypto.randomUUID(),
+            id: globalThis.crypto?.randomUUID?.() || `note-${Date.now()}-${Math.random().toString(36).slice(2)}`,
             pageNumber: page,
             x,
             y,
@@ -402,9 +407,7 @@ function App() {
 
     // Load recent files on mount and when returning to home
     useEffect(() => {
-        getRecentFiles().then(setRecentFiles).catch(err =>
-            console.warn('[App] Failed to load recent files:', err)
-        );
+        initializeStorage().catch(reportStorageError).then(() => getRecentFiles()).then(setRecentFiles).catch(reportStorageError);
     }, [file]); // Refresh when file changes (including back to null = home)
 
     // Save theme changes and re-apply CSS custom properties
@@ -441,36 +444,26 @@ function App() {
         document.body.style.backgroundColor = palette.appBg;
     }, [themeVariant, theme]); // Note: added 'theme' dependency to ensure we save correct pair
 
-    // Auto-save reading position (ref-based dirty-check, no re-render spam)
-    const readingStateRef = useRef({ pageNumber, scale, scrollMode, fileId: currentFileId });
-    const lastSavedRef = useRef({ pageNumber: 0, scale: 0, scrollMode: ScrollMode.PAGED as ScrollMode });
+    // La restauration et l'identité font partie du même instantané ; aucun état provisoire n'est écrit.
+    useLayoutEffect(() => {
+        if (!file || !currentFileId || restorePage !== undefined || !restoredRef.current) return;
+        readingStateRef.current = { fileId: currentFileId, pageNumber, scale, scrollMode, annotations };
+    }, [file, currentFileId, restorePage, pageNumber, scale, scrollMode, annotations]);
 
-    // Keep ref in sync with state — this never resets a timer
     useEffect(() => {
-        readingStateRef.current = { pageNumber, scale, scrollMode, fileId: currentFileId };
-    }, [pageNumber, scale, scrollMode, currentFileId]);
-
-    // Single interval: dirty-check + save every 3s
-    useEffect(() => {
-        if (!file) return;
-
-        const interval = setInterval(() => {
-            const { pageNumber: p, scale: s, scrollMode: m, fileId } = readingStateRef.current;
-            const last = lastSavedRef.current;
-
-            // Only save if something actually changed
-            if (!fileId || (p === last.pageNumber && s === last.scale && m === last.scrollMode)) return;
-
-            lastSavedRef.current = { pageNumber: p, scale: s, scrollMode: m };
-            saveReadingPosition(fileId, {
-                pageNumber: p,
-                scale: s,
-                scrollMode: m === ScrollMode.CONTINUOUS ? 'continuous' : 'paged'
-            }).catch(err => console.warn('[App] Failed to save reading position:', err));
-        }, 3000);
-
-        return () => clearInterval(interval);
-    }, [file]);
+        if (navigator.storage?.persist) void navigator.storage.persist().catch(() => {});
+        const interval = setInterval(flushReadingState, 3000);
+        const handleHidden = () => {
+            if (document.visibilityState === 'hidden') flushReadingState();
+        };
+        document.addEventListener('visibilitychange', handleHidden);
+        window.addEventListener('pagehide', flushReadingState);
+        return () => {
+            clearInterval(interval);
+            document.removeEventListener('visibilitychange', handleHidden);
+            window.removeEventListener('pagehide', flushReadingState);
+        };
+    }, [flushReadingState]);
 
     // ═══════════════════════════════════════════════════════════════════════
     // KEYBOARD SHORTCUTS
@@ -612,6 +605,8 @@ function App() {
             onDrop={handleDrop}
         >
 
+            {storageError && <div role="alert" className="flex-none p-3 bg-[var(--lumina-bg-secondary)] text-[var(--lumina-text)] border-b border-[var(--lumina-border)]">{storageError}</div>}
+
             {/* 0. Reading Progress Bar */}
             {file && numPages > 0 && (
                 <ReadingProgressBar
@@ -681,7 +676,14 @@ function App() {
                         toggleAiPanel={() => setIsAiPanelOpen(!isAiPanelOpen)}
                         toggleVisibility={() => setIsToolbarVisible(!isToolbarVisible)}
                         onHome={() => {
+                            flushReadingState();
+                            ++openingRef.current;
+                            restoredRef.current = false;
+                            readingStateRef.current = null;
                             setFile(null);
+                            setIsOpening(false);
+                            setCurrentFileId(null);
+                            setAnnotations([]);
                             setIsViewerReady(false);
                         }}
                         recentFiles={recentFiles.slice(0, 5).map(f => ({ id: f.id, name: f.name, lastVisited: f.lastVisited }))}
@@ -697,7 +699,11 @@ function App() {
                 ) : (
                     <div className="w-full h-full relative flex flex-row">
                         <div className="flex-1 relative h-full w-full overflow-hidden">
-                            <PdfViewer
+                            {isOpening ? <p className="p-10" role="status">Ouverture du document...</p> : <PdfViewer
+                                key={documentSession}
+                                restorePage={restorePage}
+                                restoreZoom={restoreZoom}
+                                onRestored={handleRestored}
                                 ref={pdfViewerRef}
                                 file={file}
                                 numPages={numPages}
@@ -719,7 +725,7 @@ function App() {
                                 onScaleChange={setScale}
                                 isOutlineOpen={isOutlineOpen}
                                 onToggleOutline={() => setIsOutlineOpen(!isOutlineOpen)}
-                            />
+                            />}
                         </div>
 
                         <div style={{ display: isAiPanelOpen ? 'contents' : 'none' }}>

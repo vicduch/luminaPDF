@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { getRecentFiles as getLocalRecents, deleteRecentFile, RecentFileMetadata, getFileBlob } from '../services/storage';
+import { getRecentFiles as getLocalRecents, deleteRecentFile, RecentFileMetadata, getFileBlob, initializeStorage } from '../services/storage';
 import {
     signInWithGoogle,
     signOut,
@@ -21,6 +21,7 @@ interface RecentFilesProps {
 
 const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme, themeVariant }) => {
     const [files, setFiles] = useState<RecentFileMetadata[]>([]);
+    const [storageError, setStorageError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [user, setUser] = useState<any>(null);
     const [isCloudEnabled, setIsCloudEnabled] = useState(false);
@@ -56,6 +57,9 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme, themeVar
         setLoading(true);
         try {
             // 1. Load Local Files
+            await initializeStorage().catch(() => {
+                setStorageError("Impossible de convertir certains documents sur cet appareil. Les données d’origine sont conservées ; la conversion reprendra au prochain démarrage.");
+            });
             const local = await getLocalRecents();
 
             // 2. Load Cloud Files if logged in
@@ -166,6 +170,8 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme, themeVar
 
     const handleDelete = async (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
+        const name = files.find(file => file.id === id)?.name || id;
+        if (!window.confirm(`Retirer « ${name} » de la bibliothèque ? La copie, la progression et les notes de ce document seront effacées de cet appareil.`)) return;
         try {
             // 1. Suppression locale (IndexedDB)
             await deleteRecentFile(id);
@@ -186,6 +192,7 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme, themeVar
 
     return (
         <div className="max-w-6xl mx-auto p-8 animate-fade-in">
+            {storageError && <p role="alert">{storageError}</p>}
             {/* Header / Actions */}
             <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6 border-b border-black/5 dark:border-white/5 pb-8">
                 <div className="flex flex-col">
@@ -285,7 +292,8 @@ const RecentFiles: React.FC<RecentFilesProps> = ({ onFileSelect, theme, themeVar
                                 <button
                                     onClick={(e) => handleDelete(e, file.id)}
                                     className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 p-2 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all z-10 shadow-sm"
-                                    title="Supprimer"
+                                    title={`Retirer ${file.name} de la bibliothèque`}
+                                    aria-label={`Retirer ${file.name} de la bibliothèque`}
                                 >
                                     <Trash2 size={14} />
                                 </button>

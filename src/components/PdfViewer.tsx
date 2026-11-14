@@ -22,6 +22,9 @@ export interface PdfViewerRef {
 
 interface PdfViewerProps {
   file: any;
+  restorePage?: number;
+  restoreZoom?: boolean;
+  onRestored?: () => void;
   pageNumber: number;
   scale: number;
   numPages: number;
@@ -345,6 +348,9 @@ const LazyPage = React.memo(LazyPageInner, (prev, next) => {
 const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
   const {
     file,
+    restorePage,
+    restoreZoom = false,
+    onRestored,
     pageNumber,
     scale,
     numPages,
@@ -400,6 +406,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
   const [containerDims, setContainerDims] = useState({ width: 0, height: 0 });
 
   const lastScaleRef = useRef(scale);
+  const restorationDoneRef = useRef(false);
   const navLockRef = useRef(false);
   const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fitPendingRef = useRef(false);
@@ -504,7 +511,10 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     // Un changement de format conserve l'ajustement, mais jamais au détriment d'un zoom manuel.
     const keepFit = (resized || pageResized) && previous.file === file && previous.ready &&
       scale === lastScaleRef.current && !pendingZoomRef.current && Math.abs(lastScaleRef.current - previous.fit) < 0.02;
-    const initialFit = (previous.file !== file || !previous.ready) && ready && scale === 1;
+    const tabletPaged = scrollMode === ScrollMode.PAGED && window.matchMedia('(pointer: coarse)').matches;
+    const restoring = restorePage !== undefined && !restorationDoneRef.current;
+    const initialFit = (previous.file !== file || !previous.ready) && ready &&
+      ((!restoreZoom && scale === 1) || (restoring && tabletPaged));
     previousLayoutRef.current = { file, mode: scrollMode, page: pageNumber, ready,
       width: containerDims.width, height: containerDims.height,
       pageWidth: currentPageDimensions.width, pageHeight: currentPageDimensions.height, fit: fitScale };
@@ -516,7 +526,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       lockNavigation();
       fitPendingRef.current = false;
       pendingZoomRef.current = null;
-      centerDocument(pageNumber);
+      centerDocument(restoring ? restorePage : pageNumber);
     } else if (scale !== lastScaleRef.current) {
       const rect = camera.getBoundingClientRect();
       const viewport = container.getBoundingClientRect();
@@ -531,8 +541,16 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       container.scrollTop += rect.top + anchor.worldY * scale - anchor.clientY;
       pendingZoomRef.current = null;
     }
+    // Les dimensions réelles et l'ajustement doivent précéder toute sauvegarde.
+    if (restoring && ready && containerDims.width && containerDims.height && !fitPendingRef.current) {
+      lockNavigation();
+      centerDocument(restorePage);
+      setPageNumber?.(Math.max(1, Math.min(numPages, restorePage)));
+      restorationDoneRef.current = true;
+      onRestored?.();
+    }
     lastScaleRef.current = scale;
-  }, [file, scrollMode, pageNumber, scale, allPagesDimensions, fitRequest, centerDocument, lockNavigation, pendingZoomRef, containerDims.width, containerDims.height, currentPageDimensions.width, currentPageDimensions.height, fitScale, onScaleChange]);
+  }, [file, scrollMode, pageNumber, scale, allPagesDimensions, fitRequest, centerDocument, lockNavigation, pendingZoomRef, containerDims.width, containerDims.height, currentPageDimensions.width, currentPageDimensions.height, fitScale, onScaleChange, restorePage, restoreZoom, onRestored, setPageNumber, numPages]);
 
   useLayoutEffect(() => () => {
     if (navTimerRef.current !== null) clearTimeout(navTimerRef.current);
@@ -542,9 +560,9 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
 
   // Les notifications anciennes ne doivent pas modifier le document ou le mode courant.
   const handlePageVisible = useCallback(() => {
-    if (navLockRef.current || fileRef.current !== file || scrollModeRef.current !== scrollMode) return;
+    if ((restorePage !== undefined && !restorationDoneRef.current) || navLockRef.current || fileRef.current !== file || scrollModeRef.current !== scrollMode) return;
     reconcileVisiblePageRef.current();
-  }, [file, scrollMode]);
+  }, [file, scrollMode, restorePage]);
 
   // Sprint Perf-A: Stable document load handler (prevents re-triggering on re-renders)
   const pdfDocRef = useRef<any>(null);
@@ -735,7 +753,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
               }}
             >
               <div id="pdf-scale-layer" className="flex-none flex flex-col items-center gap-8">
-                {isContinuous ? (
+                {restorePage !== undefined && allPagesDimensions.size === 0 ? null : isContinuous ? (
                   Array.from({ length: numPages }, (_, i) => {
                     const pn = i + 1;
                     return (

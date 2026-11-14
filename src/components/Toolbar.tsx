@@ -110,7 +110,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
             <div className="reader-colors" role="group" aria-label="Couleur des notes">
               {COLORS.map(([label, value]) => <button key={value} aria-label={label} aria-pressed={annotationColor === value} onClick={() => setAnnotationColor(value)}><span style={{ backgroundColor: value }} aria-hidden="true" />{annotationColor === value && <span aria-hidden="true">✓</span>}</button>)}
             </div>
-            <p className="reader-help">Notes en mémoire uniquement, non sauvegardées.</p>
+            <p className="reader-help">Notes conservées sur cet appareil, dans les données locales de ce navigateur.</p>
           </section>
           <section aria-label="Autres outils">
             <button className="reader-tool-wide" onClick={() => { toggleAiPanel(); setToolsOpen(false); toolsButtonRef.current?.focus(); }}>Ouvrir l’assistant IA</button>

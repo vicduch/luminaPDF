@@ -1,4 +1,5 @@
 import { Annotation } from '../types';
+import { getFileId } from '../utils/fileFingerprint';
 
 export interface RecentFileMetadata {
     id: string;
@@ -58,12 +59,18 @@ export const saveRecentFile = async (file: File, metadata: RecentFileMetadata): 
 
         transaction.oncomplete = () => resolve();
         transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error || new Error("Écriture annulée"));
 
         const filesStore = transaction.objectStore(STORE_FILES);
         const metaStore = transaction.objectStore(STORE_META);
 
-        filesStore.put({ id: metadata.id, blob: file });
-        metaStore.put(metadata);
+        try {
+            filesStore.put({ id: metadata.id, blob: file });
+            metaStore.put(metadata);
+        } catch (error) {
+            transaction.abort();
+            reject(error);
+        }
     });
 };
 
@@ -78,19 +85,18 @@ export const updateFileMetadata = async (id: string, updates: Partial<RecentFile
         request.onsuccess = () => {
             const data = request.result as RecentFileMetadata;
             if (data) {
-                const updated = { ...data, ...updates, lastVisited: Date.now() }; // Always bump lastVisited on update? Maybe not if just auto-saving page. 
-                // Actually, if we are reading it, we probably want to bump it, but let's stick to explicit updates.
-                // If updates contains lastVisited, it will override.
-                // Let's ensure lastVisited is updated if not provided, to keep it at top of recents? 
-                // User might be just lurking, but usually yes.
-                // Let's respect what's passed or default to now if not passed? 
-                // Actually, let's keep it simple: just merge.
-                store.put(updated);
+                try {
+                    store.put({ ...data, ...updates, lastVisited: updates.lastVisited ?? Date.now() });
+                } catch (error) {
+                    transaction.abort();
+                    reject(error);
+                }
             }
         };
 
         transaction.oncomplete = () => resolve();
         transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error || new Error("Écriture annulée"));
     });
 };
 
@@ -136,8 +142,78 @@ export const deleteRecentFile = async (id: string): Promise<void> => {
         transaction.objectStore(STORE_META).delete(id);
         transaction.oncomplete = () => resolve();
         transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error || new Error("Écriture annulée"));
     });
 };
+
+// La lecture de la fiche complète évite les remises à zéro à l'ouverture.
+export const getFileMetadata = async (id: string): Promise<RecentFileMetadata | null> => {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+        const request = db.transaction(STORE_META, 'readonly').objectStore(STORE_META).get(id);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => reject(request.error);
+    });
+};
+
+let initialization: Promise<void> | null = null;
+export const initializeStorage = (): Promise<void> => {
+    if (!initialization) initialization = migrateRecentFiles();
+    return initialization;
+};
+
+async function migrateRecentFiles(): Promise<void> {
+    const entries = await getRecentFiles();
+    for (const entry of entries) {
+        if (/^sha256-[0-9a-f]{64}$/.test(entry.id)) continue;
+        let blob: Blob | null;
+        let id: string;
+        try {
+            blob = await getFileBlob(entry.id);
+            if (!(blob instanceof Blob)) continue;
+            // Aucun await non-IDB après l'ouverture de la transaction d'écriture.
+            id = await getFileId(blob);
+        } catch {
+            continue; // Une copie absente ou illisible reste intacte.
+        }
+        const db = await openDB();
+        await new Promise<void>((resolve, reject) => {
+            const transaction = db.transaction([STORE_FILES, STORE_META], 'readwrite');
+            transaction.oncomplete = () => resolve();
+            transaction.onerror = () => reject(transaction.error);
+            transaction.onabort = () => reject(transaction.error || new Error("Migration annulée"));
+            const metaStore = transaction.objectStore(STORE_META);
+            const filesStore = transaction.objectStore(STORE_FILES);
+            const source = metaStore.get(entry.id);
+            source.onsuccess = () => {
+                const legacy = source.result as RecentFileMetadata | undefined;
+                if (!legacy) return;
+                const target = metaStore.get(id);
+                target.onsuccess = () => {
+                    try {
+                        const existing = target.result as RecentFileMetadata | undefined;
+                        const winner = existing && existing.lastVisited >= legacy.lastVisited ? existing : legacy;
+                        const other = winner === legacy ? existing : legacy;
+                        const notes = new Map((other?.annotations || []).map(note => [note.id, note]));
+                        for (const note of winner.annotations || []) notes.set(note.id, note);
+                        const merged = {
+                            ...legacy, ...existing, ...winner, id,
+                            annotations: [...notes.values()],
+                            thumbnail: existing?.thumbnail || legacy.thumbnail,
+                        };
+                        filesStore.put({ id, blob });
+                        metaStore.put(merged);
+                        filesStore.delete(entry.id);
+                        metaStore.delete(entry.id);
+                    } catch (error) {
+                        transaction.abort();
+                        reject(error);
+                    }
+                };
+            };
+        });
+    }
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // READING POSITION PERSISTENCE
