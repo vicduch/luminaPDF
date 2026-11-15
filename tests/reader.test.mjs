@@ -19,6 +19,17 @@ const pageRect = (r, n) => r.evaluate(n => {
   return { x: p.x, y: p.y, width: p.width, height: p.height, right: p.right, bottom: p.bottom };
 }, n);
 
+// LUM-13 G2 : l'ancrage du zoom n'est garanti que sur les axes où le document agrandi (page en
+// Page par page, colonne de pages en Continu) dépasse la zone de lecture ; ailleurs il reste centré.
+const exceeding = r => r.evaluate(() => {
+  const c = document.querySelector('.pdf-viewer-container');
+  const boxes = [...document.querySelectorAll('[data-page-number]')].map(e => e.getBoundingClientRect()).filter(p => p.width > 1 && p.height > 1);
+  if (!c || !boxes.length) return { x: true, y: true };
+  const width = Math.max(...boxes.map(p => p.right)) - Math.min(...boxes.map(p => p.left));
+  const height = Math.max(...boxes.map(p => p.bottom)) - Math.min(...boxes.map(p => p.top));
+  return { x: width > c.clientWidth + 1, y: height > c.clientHeight + 1 };
+});
+
 async function atPage(r, n) {
   await eventually(async () => {
     if (await active(r) !== n) return false;
@@ -101,8 +112,11 @@ async function pinch(r, leaveOneFinger = false) {
   await eventually(async () => (await pageRect(r, 3))?.width > before.width * 1.1, 'two fingers really zoom');
   await pause(250);
   const after = await pageRect(r, 3);
-  assert.ok(Math.abs(after.x + (p.x - before.x) / before.width * after.width - p.x) <= 8
-    && Math.abs(after.y + (p.y - before.y) / before.height * after.height - p.y) <= 8, 'pinch midpoint stays anchored');
+  const pinchOver = await exceeding(r);
+  const pinchDx = after.x + (p.x - before.x) / before.width * after.width - p.x;
+  const pinchDy = after.y + (p.y - before.y) / before.height * after.height - p.y;
+  assert.ok((!pinchOver.x || Math.abs(pinchDx) <= 8) && (!pinchOver.y || Math.abs(pinchDy) <= 8),
+    `pinch midpoint stays anchored on every axis where the enlarged document exceeds the reader area (LUM-13 G2): ${JSON.stringify({ pinchOver, pinchDx, pinchDy })}`);
   if (leaveOneFinger) {
     // A smaller active touch set releases contact 2; CDP touchEnd itself must be empty.
     await touch(r, 'touchMove', [{ id: 1, x: p.x - 120, y: p.y }]);
@@ -213,15 +227,18 @@ test('reader public browser contract', { timeout: 240_000 }, async t => {
       const zoomed = await pageRect(r, 3);
       const anchorX = zoomed.x + (p.x - before.x) / before.width * zoomed.width;
       const anchorY = zoomed.y + (p.y - before.y) / before.height * zoomed.height;
-      assert.ok(Math.abs(anchorX - p.x) <= 8 && Math.abs(anchorY - p.y) <= 8, `cursor anchor preserved: dx=${anchorX - p.x}, dy=${anchorY - p.y}`);
+      const over = await exceeding(r);
+      assert.ok((!over.x || Math.abs(anchorX - p.x) <= 8) && (!over.y || Math.abs(anchorY - p.y) <= 8),
+        `cursor anchor preserved on every axis where the enlarged document exceeds the reader area (LUM-13 G2): over=${JSON.stringify(over)}, dx=${anchorX - p.x}, dy=${anchorY - p.y}`);
       if (name === CONTINUOUS) continue;
       await drag(r, -1, true);
       await touch(r, 'touchEnd');
       await unchanged(r, 3, 'zoomed gesture pans, never turns');
       const moved = await pageRect(r, 3);
       assert.ok(Math.hypot(moved.x - zoomed.x, moved.y - zoomed.y) > 10, 'zoomed page actually pans');
-      for (let i = 0; i < 3; i++) await swipe(r, -1);
-      await unchanged(r, 3, 'repeated zoomed pan at edge never turns');
+      // LUM-13 G5 remplace « un pan zoomé ne tourne jamais, même au bord » : tirer au-delà du bord
+      // tourne désormais une page (couvert par tests/gestures.test.mjs). Un glissement vertical,
+      // lui, ne tourne jamais de page : c'est l'assertion `unchanged` ci-dessus, conservée.
     }
     await mode(r, PAGED);
     await go(r, 3);
@@ -298,5 +315,15 @@ test('reader public browser contract', { timeout: 240_000 }, async t => {
       .filter(e => e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden')
       .filter(e => { const p = e.getBoundingClientRect(); return p.width < 44 || p.height < 44 || p.left < -1 || p.right > innerWidth + 1; })
       .map(e => e.getAttribute('aria-label') || e.textContent.trim() || e.tagName)), [], 'all visible toolbar targets fit and are at least44px');
+  });
+
+  await scenario('library screen displays total page count of opened document (LUM-15)', 1280, 900, async r => {
+    await atPage(r, 1);
+    await pause(400);
+    const homeButton = await r.hasControl('button', 'Revenir à la bibliothèque') ? 'Revenir à la bibliothèque' : 'Bibliothèque';
+    await r.control('button', homeButton);
+    await eventually(() => r.evaluate(() => !document.querySelector('#pdf-workspace [data-page-number]')), 'library screen displayed');
+    await eventually(() => r.evaluate(() => /\bsur\s*5\b/i.test(document.body?.innerText || '')),
+      'library displays total page count (e.g. Page 1 sur 5)');
   });
 });

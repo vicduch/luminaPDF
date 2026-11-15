@@ -8,6 +8,7 @@ export interface RecentFileMetadata {
     type: string;
     lastVisited: number;
     pageNumber: number;
+    numPages?: number;
     scale?: number;
     scrollPosition?: { x: number; y: number };
     scrollMode?: 'paged' | 'continuous';
@@ -25,7 +26,7 @@ let dbPromise: Promise<IDBDatabase> | null = null;
 const openDB = (): Promise<IDBDatabase> => {
     if (dbPromise) return dbPromise;
 
-    dbPromise = new Promise((resolve, reject) => {
+    dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
         const request = indexedDB.open(DB_NAME, DB_VERSION);
 
         request.onerror = () => {
@@ -47,6 +48,10 @@ const openDB = (): Promise<IDBDatabase> => {
                 store.createIndex('lastVisited', 'lastVisited', { unique: false });
             }
         };
+    }).catch(error => {
+        // Libérer seulement l’échec ; les accès en cours ou réussis restent mutualisés.
+        dbPromise = null;
+        throw error;
     });
 
     return dbPromise;
@@ -158,7 +163,10 @@ export const getFileMetadata = async (id: string): Promise<RecentFileMetadata | 
 
 let initialization: Promise<void> | null = null;
 export const initializeStorage = (): Promise<void> => {
-    if (!initialization) initialization = migrateRecentFiles();
+    if (!initialization) initialization = migrateRecentFiles().catch(error => {
+        initialization = null;
+        throw error;
+    });
     return initialization;
 };
 
@@ -200,6 +208,9 @@ async function migrateRecentFiles(): Promise<void> {
                             ...legacy, ...existing, ...winner, id,
                             annotations: [...notes.values()],
                             thumbnail: existing?.thumbnail || legacy.thumbnail,
+                            ...((existing?.numPages !== undefined || legacy.numPages !== undefined)
+                                ? { numPages: winner.numPages ?? existing?.numPages ?? legacy.numPages }
+                                : {}),
                         };
                         filesStore.put({ id, blob });
                         metaStore.put(merged);

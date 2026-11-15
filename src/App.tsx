@@ -12,11 +12,10 @@
 
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import { ViewMode, AppTheme, ScrollMode, Annotation, PdfMetadata } from './types';
-import Toolbar from './components/Toolbar';
+import Toolbar, { ReaderBottomDock } from './components/Toolbar';
 import PdfViewer, { PdfViewerRef } from './components/PdfViewer';
 import AiPanel from './components/AiPanel';
 import RecentFiles from './components/RecentFiles';
-import ReadingProgressBar from './components/ReadingProgressBar';
 import { pdfjs } from 'react-pdf';
 import { applyTheme, getThemePalette, ThemeVariant, isDarkVariant } from './utils/ThemeManager';
 import { saveRecentFile, getFileMetadata, initializeStorage, getRecentFiles, getFileBlob, generateThumbnail, updateFileMetadata, RecentFileMetadata } from './services/storage';
@@ -145,7 +144,7 @@ function App() {
     const openingRef = useRef(0);
     const restoredRef = useRef(false);
     const readingStateRef = useRef<{
-        fileId: string; pageNumber: number; scale: number; scrollMode: ScrollMode; annotations: Annotation[];
+        fileId: string; pageNumber: number; scale: number; scrollMode: ScrollMode; annotations: Annotation[]; numPages?: number;
     } | null>(null);
     const lastSavedRef = useRef('');
     const reportStorageError = useCallback(() => {
@@ -162,6 +161,7 @@ function App() {
             scale: snapshot.scale,
             scrollMode: snapshot.scrollMode,
             annotations: snapshot.annotations,
+            ...(snapshot.numPages ? { numPages: snapshot.numPages } : {}),
         }).then(() => {
             if (readingStateRef.current?.fileId === snapshot.fileId) lastSavedRef.current = signature;
         }).catch(reportStorageError);
@@ -180,6 +180,7 @@ function App() {
         const session = ++openingRef.current;
         restoredRef.current = false;
         readingStateRef.current = null;
+        setStorageError(null);
         setIsOpening(true);
         setNumPages(0);
         setAnnotations([]);
@@ -187,11 +188,7 @@ function App() {
         let id: string | null = null;
         let existing: RecentFileMetadata | null = null;
         let canSave = true;
-        try {
-            await initializeStorage();
-        } catch {
-            reportStorageError();
-        }
+        await initializeStorage().catch(() => {});
         try {
             id = await getFileId(selectedFile);
             existing = await getFileMetadata(id);
@@ -204,12 +201,14 @@ function App() {
         const restoredScale = existing?.scale || 1;
         const restoredMode = existing?.scrollMode === 'continuous' ? ScrollMode.CONTINUOUS : ScrollMode.PAGED;
         const restoredNotes = existing?.annotations || [];
+        const restoredNumPages = existing?.numPages;
         const metadata: RecentFileMetadata | null = id && canSave ? {
             ...existing,
             id, name: selectedFile.name, size: selectedFile.size,
             type: selectedFile.type || 'application/pdf', lastVisited: Date.now(),
             pageNumber: restoredPage, scale: restoredScale, scrollMode: restoredMode,
             annotations: restoredNotes,
+            ...(restoredNumPages ? { numPages: restoredNumPages } : {}),
         } : null;
         // Les états du nouveau document sont publiés ensemble, après la lecture de sa fiche.
         setFile(selectedFile);
@@ -224,8 +223,16 @@ function App() {
         setRestoreZoom(!!existing);
         setRestorePage(restoredPage);
         setDocumentSession(session);
-        lastSavedRef.current = JSON.stringify({ fileId: id, pageNumber: restoredPage, scale: restoredScale, scrollMode: restoredMode, annotations: restoredNotes });
+        lastSavedRef.current = JSON.stringify({
+            fileId: id,
+            pageNumber: restoredPage,
+            scale: restoredScale,
+            scrollMode: restoredMode,
+            annotations: restoredNotes,
+            ...(restoredNumPages ? { numPages: restoredNumPages } : {}),
+        });
         if (metadata) {
+            setRecentFiles(prev => [metadata, ...prev.filter(f => f.id !== metadata.id)]);
             try {
                 await saveRecentFile(selectedFile, metadata);
                 if (!metadata.thumbnail) {
@@ -308,6 +315,7 @@ function App() {
             AppTheme.FOREST,
             AppTheme.MIDNIGHT,
             AppTheme.DARK,
+            AppTheme.BLUE_NIGHT,
             AppTheme.OLED,
             AppTheme.EINK,
         ];
@@ -407,7 +415,7 @@ function App() {
 
     // Load recent files on mount and when returning to home
     useEffect(() => {
-        initializeStorage().catch(reportStorageError).then(() => getRecentFiles()).then(setRecentFiles).catch(reportStorageError);
+        initializeStorage().catch(() => {}).then(() => getRecentFiles()).then(setRecentFiles).catch(() => {});
     }, [file]); // Refresh when file changes (including back to null = home)
 
     // Save theme changes and re-apply CSS custom properties
@@ -447,8 +455,24 @@ function App() {
     // La restauration et l'identité font partie du même instantané ; aucun état provisoire n'est écrit.
     useLayoutEffect(() => {
         if (!file || !currentFileId || restorePage !== undefined || !restoredRef.current) return;
-        readingStateRef.current = { fileId: currentFileId, pageNumber, scale, scrollMode, annotations };
-    }, [file, currentFileId, restorePage, pageNumber, scale, scrollMode, annotations]);
+        readingStateRef.current = {
+            fileId: currentFileId,
+            pageNumber,
+            scale,
+            scrollMode,
+            annotations,
+            ...(numPages > 0 ? { numPages } : {}),
+        };
+    }, [file, currentFileId, restorePage, pageNumber, scale, scrollMode, annotations, numPages]);
+
+    useEffect(() => {
+        if (!currentFileId || numPages <= 0) return;
+        setRecentFiles(prev => {
+            const current = prev.find(item => item.id === currentFileId);
+            if (!current || current.numPages === numPages) return prev;
+            return prev.map(item => item.id === currentFileId ? { ...item, numPages } : item);
+        });
+    }, [currentFileId, numPages]);
 
     useEffect(() => {
         if (navigator.storage?.persist) void navigator.storage.persist().catch(() => {});
@@ -595,7 +619,7 @@ function App() {
     return (
         <div
             className={`
-        flex flex-col h-[100dvh] w-full overflow-hidden transition-colors duration-300
+        flex flex-col h-[100dvh] w-full overflow-hidden transition-colors duration-200
         ${isDarkVariant(themeVariant) ? 'dark' : ''}
         bg-[var(--lumina-bg)]
       `}
@@ -606,16 +630,6 @@ function App() {
         >
 
             {storageError && <div role="alert" className="flex-none p-3 bg-[var(--lumina-bg-secondary)] text-[var(--lumina-text)] border-b border-[var(--lumina-border)]">{storageError}</div>}
-
-            {/* 0. Reading Progress Bar */}
-            {file && numPages > 0 && (
-                <ReadingProgressBar
-                    pageNumber={pageNumber}
-                    numPages={numPages}
-                    theme={theme}
-                    onNavigate={handleNavigate}
-                />
-            )}
 
             {/* 1. Header / Toolbar */}
             {file && (
@@ -686,7 +700,7 @@ function App() {
                             setAnnotations([]);
                             setIsViewerReady(false);
                         }}
-                        recentFiles={recentFiles.slice(0, 5).map(f => ({ id: f.id, name: f.name, lastVisited: f.lastVisited }))}
+                        recentFiles={recentFiles.slice(0, 5).map(f => ({ id: f.id, name: f.name, lastVisited: f.lastVisited, pageNumber: f.pageNumber, numPages: f.numPages }))}
                         onOpenRecentFile={handleOpenRecentFile}
                     />
                 </div>
@@ -695,7 +709,15 @@ function App() {
             {/* 2. Main Workspace */}
             <div className="flex-1 relative overflow-hidden z-10">
                 {!file ? (
-                    <RecentFiles onFileSelect={handleOpenFile} theme={theme} themeVariant={themeVariant} />
+                    <RecentFiles
+                        onFileSelect={handleOpenFile}
+                        knownFiles={recentFiles}
+                        onFilesChange={setRecentFiles}
+                        theme={theme}
+                        themeVariant={themeVariant}
+                        setTheme={setTheme}
+                        setThemeVariant={setThemeVariant}
+                    />
                 ) : (
                     <div className="w-full h-full relative flex flex-row">
                         <div className="flex-1 relative h-full w-full overflow-hidden">
@@ -725,6 +747,7 @@ function App() {
                                 onScaleChange={setScale}
                                 isOutlineOpen={isOutlineOpen}
                                 onToggleOutline={() => setIsOutlineOpen(!isOutlineOpen)}
+                                onToggleToolbar={() => setIsToolbarVisible(prev => !prev)}
                             />}
                         </div>
 
@@ -740,6 +763,15 @@ function App() {
                     </div>
                 )}
             </div>
+
+            {file && (
+                <ReaderBottomDock
+                    numPages={numPages}
+                    pageNumber={pageNumber}
+                    isVisible={isToolbarVisible}
+                    setPageNumber={handleNavigate}
+                />
+            )}
 
             {/* 3. Drag & Drop Overlay */}
             <div

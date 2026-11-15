@@ -1,0 +1,39 @@
+{
+  "_source": "Maquette UX approuvée : palettes.json et src/palettes.ts, hors dépôt. Référence indépendante de la production.",
+  "light": {
+    "jour": {"desk":"#ECE9E3","surface":"#FAF9F6","page":"#FFFFFF","ink":"#000000","text":"#1F1D1A","muted":"#5B554B","accent":"#23408E"},
+    "nuit": {"desk":"#121212","surface":"#1A1A1A","page":"#1E1E1E","ink":"#DCDCDC","text":"#E6E3DE","muted":"#A5A09A","accent":"#9DB4F0"}
+  },
+  "solarized": {
+    "jour": {"desk":"#EFE8DA","surface":"#FBF8F2","page":"#FBF8F2","ink":"#1F1D1A","text":"#1F1D1A","muted":"#5B554B","accent":"#23408E"},
+    "nuit": {"desk":"#141210","surface":"#1C1A17","page":"#1C1A17","ink":"#E6DFD3","text":"#E6DFD3","muted":"#A8A092","accent":"#9DB4F0"}
+  },
+  "sepia": {
+    "jour": {"desk":"#E6D8BF","surface":"#F3E9D5","page":"#F4EAD5","ink":"#3A2C1E","text":"#3A2C1E","muted":"#6B5640","accent":"#7A3B12"},
+    "nuit": {"desk":"#17110C","surface":"#211912","page":"#241B14","ink":"#E2D2B8","text":"#E2D2B8","muted":"#B09A80","accent":"#E0A878"}
+  },
+  "forest": {
+    "jour": {"desk":"#DFE6D8","surface":"#F0F3EB","page":"#F2F5EE","ink":"#17271C","text":"#17271C","muted":"#4D5E50","accent":"#1F5C3B"},
+    "nuit": {"desk":"#0F1712","surface":"#152019","page":"#17231B","ink":"#CBDCCD","text":"#CBDCCD","muted":"#93A795","accent":"#7FC79B"}
+  },
+  "midnight": {
+    "jour": {"desk":"#DFE4EA","surface":"#F2F4F7","page":"#F4F6F9","ink":"#18202C","text":"#18202C","muted":"#4F5A6A","accent":"#23408E"},
+    "nuit": {"desk":"#0F141B","surface":"#161C25","page":"#18202A","ink":"#D0D8E2","text":"#D0D8E2","muted":"#8E9AAB","accent":"#9DB4F0"}
+  },
+  "dark": {
+    "jour": {"desk":"#D6D4CF","surface":"#E6E4DF","page":"#E9E7E2","ink":"#161616","text":"#161616","muted":"#4A4844","accent":"#23408E"},
+    "nuit": {"desk":"#0B0B0B","surface":"#141414","page":"#141414","ink":"#BEBEBE","text":"#C8C8C8","muted":"#8A8A8A","accent":"#8FA6E0"}
+  },
+  "blue_night": {
+    "jour": {"desk":"#E2E3F1","surface":"#F3F3FA","page":"#F5F5FB","ink":"#1A1D3A","text":"#1A1D3A","muted":"#4E5275","accent":"#2E3A9E"},
+    "nuit": {"desk":"#0A0F24","surface":"#10162F","page":"#111834","ink":"#C9D1F0","text":"#C9D1F0","muted":"#8B93BE","accent":"#A9B8F5"}
+  },
+  "oled": {
+    "jour": {"desk":"#FFFFFF","surface":"#FFFFFF","page":"#FFFFFF","ink":"#000000","text":"#000000","muted":"#3D3D3D","accent":"#1A2F80"},
+    "nuit": {"desk":"#000000","surface":"#000000","page":"#000000","ink":"#D0D0D0","text":"#D8D8D8","muted":"#9A9A9A","accent":"#9DB4F0"}
+  },
+  "eink": {
+    "jour": {"desk":"#D9D9D6","surface":"#ECECE9","page":"#EDEDEA","ink":"#121212","text":"#121212","muted":"#4A4A4A","accent":"#121212"},
+    "nuit": {"desk":"#1A1A1A","surface":"#262626","page":"#2A2A2A","ink":"#E0E0E0","text":"#E0E0E0","muted":"#A0A0A0","accent":"#E0E0E0"}
+  }
+}

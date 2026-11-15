@@ -2,8 +2,39 @@
   "version": 1,
   "projet": "LuminaPDF",
   "cle": "LUM",
-  "prochain_id": 13,
+  "prochain_id": 16,
   "taches": [
+    {
+      "id": "LUM-13",
+      "statut": "a_valider",
+      "priorite": "haute",
+      "titre": "Rendre les gestes et l'espace autour du PDF naturels au doigt et à la souris",
+      "jalon": "ROADMAP.md#lecture-pwa-fiable",
+      "contrat": "docs/features/LUM-13-passe-ux.md, lot 1 : espace borné au document, page qui suit le doigt, bord tiré qui tourne une page agrandie, zones de toucher, molette PC en page par page, aimant d'ajustement. Aucun stockage, service distant ni Electron.",
+      "reste": [
+        "Essai physique sur Xiaomi Pad 6 et PC souris/trackpad, puis acceptation utilisateur.",
+        "Accord pour enregistrer les changements dans Git et les envoyer ; aucun déploiement autorisé."
+      ],
+      "relais": {
+        "date": "2026-11-15",
+        "texte": "Reprise achevée localement sur base 058d500, index vide. Bilan et limites dans docs/features/LUM-13-passe-ux.md. Revue fresh Sol xhigh puis corrections par worker Sol high et relecture acceptée ; auteur de tests distinct Sol xhigh. Parent : Retour natif déclenché par swipe reproduit puis corrigé localement sans piège d'historique ; G4 11/11 et G2/G3/G5/G6 + Retour UX5 40/40. G8 4/4 après nettoyage Edge fiabilisé par auteur tests, assertions inchangées. TypeScript/build finaux et observation Edge graphique PC/tablette/360 réussis. Preuves non affectées conservées ; pas de prétendue nouvelle suite complète verte sur état unique. Changements préexistants préservés, aucun commit/push/déploiement."
+      }
+    },
+    {
+      "id": "LUM-14",
+      "statut": "a_valider",
+      "priorite": "haute",
+      "titre": "Habiller le lecteur et ses thèmes dans l'esprit manuel de OneLearn",
+      "jalon": "ROADMAP.md#lecture-pwa-fiable",
+      "contrat": "docs/features/LUM-13-passe-ux.md, lot 2 : maquette React hors dépôt validée par l'utilisateur (Option A) ; bandeau haut pleine largeur translucide sans contours latéraux, capsule de navigation en bas, immersion sans languette visible, outils et sommaire sans contours de sous-boîtes, neuf thèmes Jour/Nuit validés.",
+      "reste": [
+        "Acceptation visuelle et essai utilisateur PC/Xiaomi ; accord Git et envoi distincts de tout déploiement."
+      ],
+      "relais": {
+        "date": "2026-11-15",
+        "texte": "Option A rétablie : bandeau translucide trois pôles, Sommaire direct, dock navigable, immersion sans languette, 18 palettes approuvées et licences locales. Relecture ciblée acceptée sans finding. UX7 18 variantes vertes ; mesures boutons accent/texte ≥7,06:1. Parent Edge graphique 1440×900, 800×1280, 1280×800 et 360×800 : commandes44px visibles, focus restitué, Jour/Nuit et mouvement réduit observés. Pas de validation WCAG globale, PWA installée ou Xiaomi ; aucune dépendance ni diffusion."
+      }
+    },
     {
       "id": "LUM-1",
       "statut": "a_valider",
@@ -41,6 +72,21 @@
       "titre": "Examiner les données et clés exposées avant une nouvelle diffusion PWA",
       "jalon": "ROADMAP.md#lecture-pwa-fiable",
       "contrat": "Examiner sans recopier de valeurs les variables embarquées et les appels IA/cloud. Définir les restrictions et protections nécessaires avant diffusion, sans connexion distante, rotation de clé, dépense ni déploiement implicites. Cadrage protégé pour toute correction ; les essais locaux de lecture restent possibles sans services distants."
+    },
+    {
+      "id": "LUM-15",
+      "statut": "a_valider",
+      "priorite": "haute",
+      "titre": "Refaire la bibliothèque et les états d'attente et d'erreur dans le même langage visuel",
+      "jalon": "ROADMAP.md#lecture-pwa-fiable",
+      "contrat": "docs/features/LUM-13-passe-ux.md, lot 3 (décision 2A) : mémoriser le nombre total de pages (numPages) pour afficher « Page X sur Y » et une barre d'avancement dans la carte Reprendre et la liste des lectures récentes ; miniatures, actions accessibles au doigt, services distants en pied de page.",
+      "reste": [
+        "Essai et acceptation utilisateur de la bibliothèque réelle sur PC et Xiaomi ; accord Git. Services distants et hors ligne restent non qualifiés."
+      ],
+      "relais": {
+        "date": "2026-11-15",
+        "texte": "Bibliothèque intégrée et corrigée : dernier retrait ne réapparaît plus, boutons Reprendre/Ouvrir natifs nommés, états chargement/vide/erreur et Réessayer. Tests indépendants UX1/2/6 verts, revue ciblée acceptée ; seule extension de stockage de reprise : libérer promesses rejetées sans modifier données/migration/schéma. Accès facultatifs Cloud/Drive rebranchés sans appel distant exercé ; promesses hors ligne retirées. Rendu Jour/Nuit et360px observé dans Edge graphique. Aucun commit/push ni déploiement ; anciens deltas de migration et tests storage-extra restent préexistants, non acceptés implicitement."
+      }
     },
     {
       "id": "LUM-4",

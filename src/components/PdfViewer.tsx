@@ -3,7 +3,7 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import { AppTheme, Annotation, ScrollMode } from '../types';
 import { ThemeVariant, getRenderPalette, getThemePalette } from '../utils/ThemeManager';
 import { useDebounce } from '../hooks/useDebounce';
-import { useReaderGestures } from '../hooks/useReaderGestures';
+import { useReaderGestures, PagePlacement } from '../hooks/useReaderGestures';
 import AnnotationLayer from './AnnotationLayer';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
@@ -44,6 +44,7 @@ interface PdfViewerProps {
   onDeleteAnnotation?: (id: string) => void;
   isOutlineOpen?: boolean;
   onToggleOutline?: () => void;
+  onToggleToolbar?: () => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -200,6 +201,7 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
 
   // Combined observer: tracks both visibility (active page) and render eligibility
   useEffect(() => {
+    if (forceRender) return;
     const el = elementRef.current;
     const root = containerRef.current;
     if (!el || !root) return;
@@ -249,7 +251,8 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
   const filterStyle = useMemo(() => {
     if (!theme || !themeVariant) return 'none';
 
-    // Check identity: standard light theme (white bg, black fg) needs no filter
+    // Check identity: standard light theme needs no filter
+    if (theme === AppTheme.LIGHT && themeVariant === 'light') return 'none';
     const palette = getRenderPalette(theme, themeVariant);
     const [bgR, bgG, bgB] = palette.bg;
     const [fgR, fgG, fgB] = palette.fg;
@@ -257,9 +260,11 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
 
     if (isIdentity) return 'none';
 
-    let f = 'url(#lumina-theme-filter)';
+    let f = themeVariant === 'dark'
+      ? 'hue-rotate(180deg) url(#lumina-theme-filter)'
+      : 'url(#lumina-theme-filter)';
     if (theme === AppTheme.EINK) {
-      f += ' grayscale(1) contrast(0.95)';
+      f = `grayscale(1) ${f}`;
     }
     return f;
   }, [theme, themeVariant]);
@@ -297,7 +302,7 @@ const LazyPageInner: React.FC<LazyPageProps> = ({ pageNumber, scale, debouncedSc
               pageNumber={pageNumber}
               width={pageDimensions.width}
               devicePixelRatio={qualityDpr}
-              renderTextLayer={true}
+              renderTextLayer={false}
               renderAnnotationLayer={true}
               onLoadSuccess={onLoadSuccess}
               onRenderSuccess={handleRenderSuccess}
@@ -369,7 +374,8 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     onUpdateAnnotation,
     onDeleteAnnotation,
     isOutlineOpen = false,
-    onToggleOutline
+    onToggleOutline,
+    onToggleToolbar,
   } = props;
 
   // Keep SD snapshot visible longer; trigger HD after gesture settles.
@@ -466,34 +472,96 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     }, 300);
   }, []);
 
-  // Origine réelle de la caméra + dimensions natives du workspace, jamais la zone de scroll.
-  const centerDocument = useCallback((targetPage: number = pageNumber) => {
+  const EDGE_PAD = 8;
+  const viewW = containerDims.width || 0;
+  const viewH = containerDims.height || 0;
+  const scaledW = worldDimensions.width * scale;
+  const scaledH = worldDimensions.height * scale;
+  const fitsX = viewW > 0 && scaledW <= viewW + 0.5;
+  const fitsY = viewH > 0 && scaledH <= viewH + 0.5;
+  const padX = viewW > 0 ? (fitsX ? Math.max(0, (viewW - scaledW) / 2) : EDGE_PAD) : 0;
+  const padY = viewH > 0 ? (fitsY ? Math.max(0, (viewH - scaledH) / 2) : EDGE_PAD) : 0;
+  const wrapperWidth = viewW > 0 ? (fitsX ? viewW : Math.ceil(scaledW + EDGE_PAD * 2)) : scaledW;
+  const wrapperHeight = viewH > 0 ? (fitsY ? viewH : Math.ceil(scaledH + EDGE_PAD * 2)) : scaledH;
+
+  const pendingPlacementRef = useRef<PagePlacement>('center');
+
+  // Placement borné du document dans l'enveloppe #pdf-spacing-wrapper (G1, G2, G5, G7).
+  const placeDocument = useCallback((targetPage: number = pageNumber, placement: PagePlacement = 'center') => {
     const container = containerRef.current;
-    const content = contentRef.current;
-    const camera = cameraRef.current;
-    if (!container || !content || !camera) return;
-    const rect = camera.getBoundingClientRect();
-    const viewport = container.getBoundingClientRect();
+    if (!container) return;
+
+    const cW = container.clientWidth || viewW;
+    const cH = container.clientHeight || viewH;
+    const targetDims = allPagesDimensions.get(targetPage) || pageDimensions;
+    const wDims = scrollMode === ScrollMode.CONTINUOUS ? worldDimensions : targetDims;
+    const sW = wDims.width * scale;
+    const sH = wDims.height * scale;
+    const fX = cW > 0 && sW <= cW + 0.5;
+    const fY = cH > 0 && sH <= cH + 0.5;
+    const pX = cW > 0 ? (fX ? Math.max(0, (cW - sW) / 2) : EDGE_PAD) : 0;
+    const pY = cH > 0 ? (fY ? Math.max(0, (cH - sH) / 2) : EDGE_PAD) : 0;
+    const wW = cW > 0 ? (fX ? cW : Math.ceil(sW + EDGE_PAD * 2)) : sW;
+    const wH = cH > 0 ? (fY ? cH : Math.ceil(sH + EDGE_PAD * 2)) : sH;
+    const maxScrollX = Math.max(0, wW - cW);
+    const maxScrollY = Math.max(0, wH - cH);
+
     let top = 0;
     if (scrollMode === ScrollMode.CONTINUOUS) {
       for (let page = 1; page < targetPage; page++) {
         top += (allPagesDimensions.get(page) || pageDimensions).height + 32;
       }
     }
-    const dimensions = allPagesDimensions.get(targetPage) || pageDimensions;
-    const worldY = scrollMode === ScrollMode.CONTINUOUS ? top + dimensions.height / 2 : content.offsetHeight / 2;
-    container.scrollLeft += rect.left + content.offsetWidth * scale / 2 - viewport.left - container.clientWidth / 2;
-    container.scrollTop += rect.top + worldY * scale - viewport.top - container.clientHeight / 2;
-  }, [scrollMode, pageNumber, scale, allPagesDimensions, pageDimensions]);
 
-  const navigateFromGesture = useCallback((page: number) => {
+    let nextScrollLeft = 0;
+    if (!fX) {
+      if (placement === 'start') {
+        nextScrollLeft = 0;
+      } else if (placement === 'end') {
+        nextScrollLeft = maxScrollX;
+      } else {
+        nextScrollLeft = pX + sW / 2 - cW / 2;
+      }
+    }
+
+    let nextScrollTop = 0;
+    if (!fY) {
+      if (scrollMode === ScrollMode.CONTINUOUS) {
+        const pageCenterY = top + targetDims.height / 2;
+        nextScrollTop = pY + pageCenterY * scale - cH / 2;
+      } else if (placement === 'top' || placement === 'start') {
+        nextScrollTop = 0;
+      } else if (placement === 'bottom' || placement === 'end') {
+        nextScrollTop = maxScrollY;
+      } else {
+        nextScrollTop = pY + sH / 2 - cH / 2;
+      }
+    }
+
+    container.scrollLeft = Math.max(0, Math.min(maxScrollX, nextScrollLeft));
+    container.scrollTop = Math.max(0, Math.min(maxScrollY, nextScrollTop));
+  }, [scrollMode, pageNumber, scale, allPagesDimensions, pageDimensions, worldDimensions, viewW, viewH]);
+
+  const navigateFromGesture = useCallback((page: number, placement: PagePlacement = 'center') => {
+    pendingPlacementRef.current = placement;
     lockNavigation();
     setPageNumber?.(page);
-  }, [lockNavigation, setPageNumber]);
+    if (scrollMode === ScrollMode.CONTINUOUS || page === pageNumber) {
+      placeDocument(page, placement);
+      pendingPlacementRef.current = 'center';
+    }
+  }, [lockNavigation, setPageNumber, scrollMode, pageNumber, placeDocument]);
+
+  const triggerFitFromGesture = useCallback(() => {
+    fitPendingRef.current = true;
+    onScaleChange?.(fitScale);
+    setFitRequest((request) => request + 1);
+  }, [fitScale, onScaleChange]);
 
   const { pendingZoomRef, cancelGesture } = useReaderGestures({
     containerRef, cameraRef, file, scrollMode, scale, fitScale, pageNumber, numPages,
     isAnnotationMode, onScaleChange, onNavigate: navigateFromGesture,
+    onFitPage: triggerFitFromGesture, onToggleToolbar,
   });
 
   // Une seule correction par commit : navigation/ajustement OU point d'ancrage du zoom.
@@ -501,6 +569,9 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
     const container = containerRef.current;
     const camera = cameraRef.current;
     if (!container || !camera) return;
+    camera.style.transition = 'none';
+    camera.style.transform = `scale(${scale})`;
+
     const previous = previousLayoutRef.current;
     const ready = allPagesDimensions.size > 0;
     const navigation = previous.file !== file || previous.mode !== scrollMode ||
@@ -522,35 +593,56 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       fitPendingRef.current = true;
       pendingZoomRef.current = null;
       onScaleChange?.(fitScale);
-    } else if ((navigation && ready) || fitPendingRef.current || (resized && ready)) {
+    } else if ((navigation && ready) || fitPendingRef.current || (keepFit && ready)) {
       lockNavigation();
+      const placement = fitPendingRef.current || keepFit ? 'center' : pendingPlacementRef.current;
       fitPendingRef.current = false;
       pendingZoomRef.current = null;
-      centerDocument(restoring ? restorePage : pageNumber);
+      pendingPlacementRef.current = 'center';
+      placeDocument(restoring ? restorePage : pageNumber, placement);
     } else if (scale !== lastScaleRef.current) {
       const rect = camera.getBoundingClientRect();
       const viewport = container.getBoundingClientRect();
-      const x = viewport.left + container.clientWidth / 2;
-      const y = viewport.top + container.clientHeight / 2;
+      const cW = container.clientWidth || containerDims.width;
+      const cH = container.clientHeight || containerDims.height;
+      const x = viewport.left + cW / 2;
+      const y = viewport.top + cH / 2;
+      const prevScale = lastScaleRef.current || 1;
+      const prevScaledW = worldDimensions.width * prevScale;
+      const prevScaledH = worldDimensions.height * prevScale;
+      const prevFitsX = cW > 0 && prevScaledW <= cW + 0.5;
+      const prevFitsY = cH > 0 && prevScaledH <= cH + 0.5;
       const anchor = pendingZoomRef.current || {
-        worldX: (x - rect.left) / lastScaleRef.current,
-        worldY: (y - rect.top) / lastScaleRef.current,
-        clientX: x, clientY: y,
+        worldX: prevFitsX ? worldDimensions.width / 2 : (container.scrollLeft + cW / 2 - EDGE_PAD) / prevScale,
+        worldY: prevFitsY ? worldDimensions.height / 2 : (container.scrollTop + cH / 2 - EDGE_PAD) / prevScale,
+        clientX: x,
+        clientY: y,
       };
-      container.scrollLeft += rect.left + anchor.worldX * scale - anchor.clientX;
-      container.scrollTop += rect.top + anchor.worldY * scale - anchor.clientY;
+      const maxScrollX = Math.max(0, wrapperWidth - cW);
+      const maxScrollY = Math.max(0, wrapperHeight - cH);
+      const nextScrollLeft = fitsX ? 0 : container.scrollLeft + rect.left + anchor.worldX * scale - anchor.clientX;
+      const nextScrollTop = fitsY ? 0 : container.scrollTop + rect.top + anchor.worldY * scale - anchor.clientY;
+      container.scrollLeft = Math.max(0, Math.min(maxScrollX, nextScrollLeft));
+      container.scrollTop = Math.max(0, Math.min(maxScrollY, nextScrollTop));
       pendingZoomRef.current = null;
+    } else if (resized && ready) {
+      const cW = container.clientWidth || containerDims.width;
+      const cH = container.clientHeight || containerDims.height;
+      const maxScrollX = Math.max(0, wrapperWidth - cW);
+      const maxScrollY = Math.max(0, wrapperHeight - cH);
+      container.scrollLeft = fitsX ? 0 : Math.max(0, Math.min(maxScrollX, container.scrollLeft));
+      container.scrollTop = fitsY ? 0 : Math.max(0, Math.min(maxScrollY, container.scrollTop));
     }
     // Les dimensions réelles et l'ajustement doivent précéder toute sauvegarde.
     if (restoring && ready && containerDims.width && containerDims.height && !fitPendingRef.current) {
       lockNavigation();
-      centerDocument(restorePage);
+      placeDocument(restorePage, 'center');
       setPageNumber?.(Math.max(1, Math.min(numPages, restorePage)));
       restorationDoneRef.current = true;
       onRestored?.();
     }
     lastScaleRef.current = scale;
-  }, [file, scrollMode, pageNumber, scale, allPagesDimensions, fitRequest, centerDocument, lockNavigation, pendingZoomRef, containerDims.width, containerDims.height, currentPageDimensions.width, currentPageDimensions.height, fitScale, onScaleChange, restorePage, restoreZoom, onRestored, setPageNumber, numPages]);
+  }, [file, scrollMode, pageNumber, scale, allPagesDimensions, fitRequest, placeDocument, lockNavigation, pendingZoomRef, containerDims.width, containerDims.height, currentPageDimensions.width, currentPageDimensions.height, fitScale, onScaleChange, restorePage, restoreZoom, onRestored, setPageNumber, numPages, worldDimensions.width, worldDimensions.height, wrapperWidth, wrapperHeight, fitsX, fitsY]);
 
   useLayoutEffect(() => () => {
     if (navTimerRef.current !== null) clearTimeout(navTimerRef.current);
@@ -576,9 +668,13 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       const dimsMap = new Map<number, { width: number, height: number }>();
 
       await Promise.all(pageIndices.map(async (index) => {
-        const page = await pdf.getPage(index);
-        const viewport = page.getViewport({ scale: 1 });
-        dimsMap.set(index, { width: viewport.width, height: viewport.height });
+        try {
+          const page = await pdf.getPage(index);
+          const viewport = page.getViewport({ scale: 1 });
+          dimsMap.set(index, { width: viewport.width, height: viewport.height });
+        } catch {
+          dimsMap.set(index, { width: 612, height: 792 });
+        }
       }));
 
       if (pdfDocRef.current !== pdf || fileRef.current !== file) return;
@@ -595,13 +691,17 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
 
   // Navigation explicite commune à la barre, au clavier et aux liens PDF.
   const scrollToPage = useCallback((page: number) => {
-    if (!numPages || !Number.isFinite(page)) return;
-    const target = Math.max(1, Math.min(numPages, Math.trunc(page)));
+    const total = numPages || pdfDocRef.current?.numPages || 0;
+    if (!total || !Number.isFinite(page)) return;
+    const target = Math.max(1, Math.min(total, Math.trunc(page)));
     cancelGesture();
+    pendingPlacementRef.current = 'center';
     lockNavigation();
     setPageNumber?.(target);
-    if (scrollMode === ScrollMode.CONTINUOUS || target === pageNumber) centerDocument(target);
-  }, [numPages, pageNumber, setPageNumber, scrollMode, centerDocument, lockNavigation, cancelGesture]);
+    if (scrollMode === ScrollMode.CONTINUOUS || target === pageNumber) placeDocument(target, 'center');
+  }, [numPages, pageNumber, setPageNumber, scrollMode, placeDocument, lockNavigation, cancelGesture]);
+  const scrollToPageRef = useRef(scrollToPage);
+  useLayoutEffect(() => { scrollToPageRef.current = scrollToPage; }, [scrollToPage]);
 
   const fitPage = useCallback(() => {
     cancelGesture();
@@ -691,8 +791,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       `}
       style={{
         backgroundColor: 'var(--lumina-app-bg)',
-        // Le pan natif garde son inertie ; le pincement appartient au lecteur.
-        touchAction: !isContinuous && scale <= fitScale * 1.02 && !isAnnotationMode ? 'pan-y' : 'pan-x pan-y',
+        touchAction: !isContinuous && fitsX ? 'pan-y' : 'pan-x pan-y',
         overscrollBehavior: 'contain',
         WebkitOverflowScrolling: 'touch'
       }}
@@ -704,7 +803,7 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
       <Document
         file={file}
         onLoadSuccess={handleDocumentLoad}
-        onItemClick={({ pageNumber: pg }: { pageNumber: number }) => scrollToPage(pg)}
+        onItemClick={({ pageNumber: pg }: { pageNumber: number }) => scrollToPageRef.current(pg)}
         loading={<div className="p-10 text-gray-500 font-medium">Chargement du document...</div>}
         error={<div className="p-10 text-red-500 font-medium">Impossible de charger ce PDF. Ouvrez un autre fichier avec la barre de lecture.</div>}
       >
@@ -714,20 +813,21 @@ const PdfViewer = forwardRef<PdfViewerRef, PdfViewerProps>((props, ref) => {
             isOpen={isOutlineOpen}
             onClose={() => onToggleOutline?.()}
             onItemClick={({ pageNumber }: { pageNumber: number }) => {
-              scrollToPage(pageNumber);
+              scrollToPageRef.current(pageNumber);
             }}
             theme={theme}
           />
         </div>
 
-        {/* Sprint 2 Refactoring: Padding is extracted outside of the scaled element */}
-        {/* Phase 4D: Dynamic padding compensates for scale() visual overflow (origin 0,0 grows right/down) */}
+        {/* Enveloppe bornée au document (G1, G2) */}
         <div id="pdf-spacing-wrapper" style={{
           boxSizing: 'border-box',
-          width: containerDims.width * 2 + worldDimensions.width * scale,
-          height: containerDims.height * 2 + worldDimensions.height * scale,
-          paddingTop: containerDims.height,
-          paddingLeft: containerDims.width,
+          position: 'relative',
+          overflow: 'hidden',
+          width: wrapperWidth,
+          height: wrapperHeight,
+          paddingTop: padY,
+          paddingLeft: padX,
         }}>
           <div
             ref={cameraRef}

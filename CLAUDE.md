@@ -43,7 +43,7 @@ Les commandes npm viennent de `package.json` ; il n'existe pas encore de scripts
 - Il n'y a ni moteur de tuiles, ni `TileManager`, `RenderPool`, `CoordinateSystem`, `useZoom` ou worker PDF personnalisé. Ne pas les réintroduire depuis une archive.
 - Garder des dépendances primitives (`scale`, coordonnées, etc.) dans les effets et mémorisations ; ne pas introduire d'objets recréés à chaque rendu qui relancent ces effets.
 - Pour le zoom et la navigation, les dimensions monde viennent de `contentRef` (`#pdf-workspace`) et les décalages écran de l'origine réelle de la caméra. Ne pas utiliser `container.scrollWidth` comme dimensions monde ou référence de centrage.
-- Les modes Continu et Page par page sont également accessibles. Un swipe ajusté tourne au plus une page au relâchement ; un pan zoomé ne pagine pas. Garder l'ajustement entre formats paginés, sans écraser le zoom manuel ; réconcilier la page visible après navigation rapide.
+- Les modes Continu et Page par page sont également accessibles. Un swipe ajusté tourne au plus une page au relâchement. Un pan agrandi commencé à l'intérieur ne pagine pas ; tirer horizontalement depuis un bord déjà atteint peut tourner une page au relâchement (contrat LUM-13, G5). Le geste reste local au PDF, sans piéger le Retour du navigateur. Garder l'ajustement entre formats paginés, sans écraser le zoom manuel ; réconcilier la page visible après navigation rapide.
 - Barre, clavier, sommaire, progression et liens PDF passent par `scrollToPage` ; le bouton Ajuster par `fitPage`. Préserver les noms accessibles et le focus après fermeture des outils. Les raccourcis doivent fonctionner depuis les boutons, sans voler les interactions natives des champs/listes.
 
 ## Données, services et risques existants

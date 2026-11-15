@@ -3,20 +3,62 @@
 @tailwind utilities;
 
 /* ═══════════════════════════════════════════════════════════════════════
+     POLICES LOCALES OFL — Literata & Atkinson Hyperlegible Next
+     ═══════════════════════════════════════════════════════════════════════ */
+@font-face {
+  font-family: 'Literata';
+  src: url('/fonts/literata-roman.woff2') format('woff2');
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Atkinson Hyperlegible Next';
+  src: url('/fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Atkinson Hyperlegible Next';
+  src: url('/fonts/atkinson-hyperlegible-next-latin-ext-wght-normal.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1E00-1EFF;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
      LUMINA THEME - CSS Custom Properties
      ═══════════════════════════════════════════════════════════════════════ */
 :root {
-  /* Default: Lumina Dark */
-  --lumina-bg: #0a0a0a;
-  --lumina-bg-secondary: #111111;
-  --lumina-bg-tertiary: #1a1a1a;
-  --lumina-accent: #8B5CF6;
-  --lumina-accent-hover: #7C3AED;
-  --lumina-accent-muted: rgba(139, 92, 246, 0.15);
-  --lumina-text: #E5E7EB;
-  --lumina-text-muted: #9CA3AF;
-  --lumina-border: #27272a;
-  --lumina-shadow: rgba(139, 92, 246, 0.25);
+  --font-ui: 'Atkinson Hyperlegible Next', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Literata', Georgia, 'Times New Roman', serif;
+  /* Default: Clair Jour */
+  --lumina-app-bg: #ECE9E3;
+  --lumina-paper-bg: #FFFFFF;
+  --lumina-paper-fg: #000000;
+  --lumina-toolbar-bg: #FAF9F6;
+  --lumina-toolbar-border: rgba(31, 30, 27, 0.08);
+  --lumina-text-primary: #1F1D1A;
+  --lumina-text-secondary: #5B554B;
+  --lumina-accent: #23408E;
+  --lumina-accent-fg: #FFFFFF;
+  --lumina-hover-bg: rgba(31, 30, 27, 0.06);
+  --lumina-active-bg: rgba(140, 63, 43, 0.14);
+  --lumina-shadow: 0 10px 30px rgba(31, 30, 27, 0.08);
+  --lumina-filet: rgba(31, 30, 27, 0.08);
+  --lumina-filet-fort: rgba(31, 30, 27, 0.16);
+  --lumina-bg: #ECE9E3;
+  --lumina-bg-secondary: #FAF9F6;
+  --lumina-bg-tertiary: rgba(31, 30, 27, 0.06);
+  --lumina-accent-hover: #23408E;
+  --lumina-accent-muted: rgba(140, 63, 43, 0.14);
+  --lumina-text: #1F1D1A;
+  --lumina-text-muted: #5B554B;
+  --lumina-border: rgba(31, 30, 27, 0.08);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -25,15 +67,15 @@
 
 /* Theme transition - smooth color changes */
 .transition-theme {
-  transition: background-color 300ms ease-out,
-    color 300ms ease-out,
-    border-color 300ms ease-out,
-    box-shadow 300ms ease-out;
+  transition: background-color 200ms ease-out,
+    color 200ms ease-out,
+    border-color 200ms ease-out,
+    box-shadow 200ms ease-out;
 }
 
 /* Panel slide animations */
 .panel-slide {
-  transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .panel-slide-right {
@@ -55,7 +97,7 @@
 /* ── Premium UI Elements ── */
 /* Premium button hover effects */
 .btn-premium {
-  @apply relative overflow-hidden transition-all duration-300 ease-out;
+  @apply relative overflow-hidden transition-all duration-200 ease-out;
 }
 
 .btn-premium:hover {
@@ -208,16 +250,18 @@ body {
   height: 100vh;
   height: 100dvh;
   width: 100%;
+  overscroll-behavior: none;
 }
 
 body {
-  font-family: 'Inter', sans-serif;
-  font-weight: 300;
-  /* Light font for UI */
+  font-family: var(--font-ui);
+  font-weight: 400;
+  color: var(--lumina-text-primary);
+  background-color: var(--lumina-app-bg);
 }
 
 .serif-text {
-  font-family: 'Merriweather', serif;
+  font-family: var(--font-display);
 }
 
 /* PDF Viewer Canvas Resets */
@@ -310,7 +354,7 @@ body {
 .fly-enter-active {
   opacity: 1;
   transform: translateY(0) scale(1);
-  transition: opacity 300ms cubic-bezier(0.34, 1.56, 0.64, 1), transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: opacity 200ms cubic-bezier(0.34, 1.56, 0.64, 1), transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* New Pop-in Animation for Floating Menus */
@@ -327,7 +371,7 @@ body {
 }
 
 .animate-pop-in {
-  animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation: popIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
 /* Outline (Table of Contents) Styling for Indentation */
@@ -344,7 +388,6 @@ body {
 .react-pdf__Outline__item>ul {
   padding-left: 1.25rem;
   /* Indent sub-items */
-  border-left: 1px solid rgba(150, 150, 150, 0.2);
   margin-left: 0.5rem;
   margin-top: 0.25rem;
   margin-bottom: 0.25rem;
@@ -425,8 +468,8 @@ body {
   button,
   [role="button"],
   label[class*="cursor-pointer"] {
-    min-width: 36px;
-    min-height: 36px;
+    min-width: 44px;
+    min-height: 44px;
   }
 
   /* Smooth momentum scrolling on iOS */
@@ -437,125 +480,111 @@ body {
   }
 }
 
-/* Lecteur : surfaces opaques, commandes essentielles permanentes. */
-.reader-header {
-  position: relative;
-  color: var(--lumina-text);
-  background: var(--lumina-bg-secondary);
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-weight: 400;
-  border-bottom: 1px solid var(--lumina-border);
-}
-.reader-toolbar {
-  display: grid;
-  grid-template-columns: minmax(160px, 1fr) auto auto auto;
-  align-items: center;
-  gap: 8px 16px;
-  padding: 8px 16px;
-  font-size: 14px;
-}
-.reader-header button, .reader-header input, .reader-header select, .reader-restore {
-  min-width: 44px;
-  min-height: 44px;
-  border-radius: 6px;
-  color: var(--lumina-text);
-  font: inherit;
-}
-.reader-header button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border: 1px solid transparent;
-}
-.reader-header button:hover:not(:disabled) { background: var(--lumina-bg-tertiary); }
-.reader-header button:disabled { opacity: .45; cursor: not-allowed; }
-.reader-header button[aria-pressed="true"], .reader-header button[aria-expanded="true"] {
-  background: var(--lumina-bg-tertiary);
-  border-color: var(--lumina-text-muted);
-  font-weight: 650;
-}
-.reader-header :is(button, input, select):focus-visible, .reader-restore:focus-visible {
-  outline: 2px solid var(--lumina-text);
+/* Lecteur éditorial Option A : barre supérieure translucide, capsule inférieure et panneaux doux. */
+.reader-topbar :is(button, input, select):focus-visible,
+.reader-dock :is(button, input):focus-visible,
+.reader-restore:focus-visible {
+  outline: 2px solid var(--lumina-accent);
   outline-offset: 2px;
 }
-.reader-document, .reader-modes, .reader-navigation, .reader-primary-actions, .reader-tool-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-}
-.reader-document-title {
-  flex: 1;
-  min-width: 0;
-  font-size: 14px;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.reader-document button { flex-shrink: 0; }
-.reader-modes { gap: 4px; }
-.reader-modes button { white-space: nowrap; }
-.reader-navigation input {
-  width: 56px;
-  padding: 4px;
-  text-align: center;
-  border: 1px solid var(--lumina-border);
-  background: var(--lumina-bg);
-  font-variant-numeric: tabular-nums;
+
+.reader-dock input[type="number"] {
   appearance: textfield;
   -moz-appearance: textfield;
 }
-.reader-navigation input::-webkit-inner-spin-button, .reader-navigation input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-.reader-page-total { color: var(--lumina-text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.reader-primary-actions { justify-content: flex-end; }
-.reader-tools {
-  position: absolute;
-  z-index: 60;
-  top: calc(100% + 8px);
-  right: 8px;
-  width: min(360px, calc(100vw - 16px));
-  max-height: calc(100dvh - 180px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 16px;
-  border: 1px solid var(--lumina-border);
+
+.reader-dock input[type="number"]::-webkit-inner-spin-button,
+.reader-dock input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.reader-topbar-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+
+@media (max-width: 639px) {
+  .reader-topbar-layout {
+    display: flex;
+    justify-content: space-between;
+  }
+}
+
+.dock-progress-input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  min-width: 44px;
+  height: 44px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
   border-radius: 8px;
-  background: var(--lumina-bg-secondary);
-  box-shadow: 0 8px 24px #0003;
-  font-size: 14px;
+  touch-action: pan-y;
 }
-.reader-tools-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.reader-tools h2 { font-size: 16px; font-weight: 650; }
-.reader-tools h3 { font-size: 14px; font-weight: 650; margin-bottom: 8px; }
-.reader-tools section { padding: 16px 0; border-top: 1px solid var(--lumina-border); margin-top: 12px; }
-.reader-tools section:last-child { padding-bottom: 0; }
-.reader-tool-row { justify-content: space-between; margin-bottom: 12px; }
-.reader-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0; }
-.reader-field select { max-width: 65%; padding: 8px; border: 1px solid var(--lumina-border); background: var(--lumina-bg); }
-.reader-tool-wide { width: 100%; justify-content: flex-start !important; text-align: left; }
-.reader-help { font-size: 12px; line-height: 1.5; color: var(--lumina-text-muted); margin-top: 8px; }
-.reader-colors { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-.reader-colors button { position: relative; padding: 8px; }
-.reader-colors button > span:first-child { width: 24px; height: 24px; border-radius: 50%; border: 1px solid #0005; }
-.reader-colors button > span + span { position: absolute; color: #111; font-weight: 750; }
-.reader-recent { width: 100%; flex-direction: column; align-items: flex-start !important; gap: 2px !important; }
-.reader-recent span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.reader-recent small { color: var(--lumina-text-muted); }
-.reader-restore { width: 52px; min-height: 44px; display: flex; align-items: center; justify-content: center; background: var(--lumina-bg-secondary); }
-.pdf-viewer-container { scroll-behavior: auto; overflow-anchor: none; }
-@media (max-width: 1100px) {
-  .reader-toolbar { grid-template-columns: 1fr auto auto; gap: 4px 12px; padding: 8px 12px; }
-  .reader-document { grid-column: 1 / -1; }
+
+.dock-progress-input::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--lumina-accent) var(--reader-progress), var(--lumina-filet-fort) var(--reader-progress));
 }
-@media (max-width: 700px) {
-  .reader-toolbar { grid-template-columns: minmax(0, 1fr) auto; gap: 4px; padding: 8px; }
-  .reader-modes { grid-column: 1 / -1; }
-  .reader-modes button { flex: 1; }
-  .reader-primary-actions button { padding: 8px; }
-  .reader-primary-actions button span { display: none; }
-  .reader-navigation { gap: 2px; }
-  .reader-tools { max-height: calc(100dvh - 184px); }
+
+.dock-progress-input::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--lumina-accent) var(--reader-progress), var(--lumina-filet-fort) var(--reader-progress));
+}
+
+.dock-progress-input::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--lumina-accent);
+}
+
+.dock-progress-input::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--lumina-accent);
+}
+
+button:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--lumina-accent);
+  outline-offset: 2px;
+}
+
+.reader-restore {
+  width: 52px;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--lumina-toolbar-bg);
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.reader-restore:focus,
+.reader-restore:focus-visible {
+  opacity: 1;
+}
+
+.pdf-viewer-container {
+  scroll-behavior: auto;
+  overflow-anchor: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .reader-restore:hover {
+    opacity: 1;
+  }
 }

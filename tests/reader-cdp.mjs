@@ -44,8 +44,12 @@ export async function launch() {
         child.kill('SIGKILL');
         await Promise.race([exited, pause(2_000)]);
       }
+      if (child.exitCode === null && child.signalCode === null) {
+        throw new Error('Owned Edge did not exit after SIGTERM/SIGKILL');
+      }
     }
-    await rm(profile, { recursive: true, force: true });
+    // Les derniers processus Edge peuvent encore terminer leurs écritures après la sortie du parent.
+    await rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   };
   try {
     const endpoint = await new Promise((resolve, reject) => {

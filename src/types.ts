@@ -90,7 +90,7 @@ export interface ToolbarProps {
   toggleAiPanel: () => void;
   toggleVisibility: () => void;
   onHome?: () => void;
-  recentFiles?: { id: string; name: string; lastVisited: number }[];
+  recentFiles?: { id: string; name: string; lastVisited: number; pageNumber?: number; numPages?: number }[];
   onOpenRecentFile?: (fileId: string) => void;
 }
 
