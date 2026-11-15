@@ -1,11 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   FileText,
-  Clock,
   Trash2,
   Upload,
-  Sparkles,
-  BookOpen,
   Sun,
   Moon,
   Palette,
@@ -260,7 +257,7 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
 
   return (
     <div
-      className="flex-1 h-full overflow-y-auto transition-colors duration-200"
+      className="library-view flex-1 h-full overflow-y-auto transition-colors duration-200"
       style={{
         backgroundColor: 'var(--lumina-app-bg)',
         color: 'var(--lumina-text-primary)',
@@ -277,13 +274,8 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
           borderBottom: '1px solid var(--lumina-filet)',
         }}
       >
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-2">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-2.5 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
-            <span
-              aria-hidden="true"
-              className="w-2.5 h-2.5 rounded-full shrink-0"
-              style={{ backgroundColor: 'var(--lumina-accent)' }}
-            />
             <span
               className="text-base sm:text-lg font-medium tracking-tight truncate"
               style={{ fontFamily: 'var(--font-display)' }}
@@ -292,12 +284,12 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <div className="flex items-center justify-between sm:justify-end gap-1.5 sm:gap-2 w-full sm:w-auto shrink-0">
             {setThemeVariant && (
               <div
                 role="group"
                 aria-label="Variante de luminosité"
-                className="inline-flex items-center rounded-full p-0.5"
+                className="inline-flex items-center rounded-lg p-0.5"
                 style={{
                   backgroundColor: 'var(--lumina-hover-bg)',
                   }}
@@ -308,7 +300,7 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
                   aria-pressed={themeVariant === 'light'}
                   aria-label="Mode Jour"
                   title="Mode Jour"
-                  className="inline-flex items-center justify-center gap-1.5 min-w-[44px] min-h-[44px] px-2.5 rounded-full text-xs font-medium transition-colors"
+                  className="inline-flex items-center justify-center gap-1.5 min-w-[44px] min-h-[44px] px-2.5 rounded-md text-xs font-medium transition-colors"
                   style={
                     themeVariant === 'light'
                       ? {
@@ -328,7 +320,7 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
                   aria-pressed={themeVariant === 'dark'}
                   aria-label="Mode Nuit"
                   title="Mode Nuit"
-                  className="inline-flex items-center justify-center gap-1.5 min-w-[44px] min-h-[44px] px-2.5 rounded-full text-xs font-medium transition-colors"
+                  className="inline-flex items-center justify-center gap-1.5 min-w-[44px] min-h-[44px] px-2.5 rounded-md text-xs font-medium transition-colors"
                   style={
                     themeVariant === 'dark'
                       ? {
@@ -352,9 +344,9 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
                   onClick={() => setIsPaletteOpen((open) => !open)}
                   aria-label="Choisir l'ambiance de couleur"
                   aria-expanded={isPaletteOpen}
-                  className="inline-flex items-center justify-center gap-1.5 min-w-[44px] min-h-[44px] px-3 rounded-full text-xs font-medium transition-colors"
+                  className="inline-flex items-center justify-center gap-1.5 min-w-[44px] min-h-[44px] px-3 rounded-md text-xs font-medium transition-colors"
                   style={{
-                    backgroundColor: isPaletteOpen ? 'var(--lumina-active-bg)' : 'var(--lumina-hover-bg)',
+                    backgroundColor: isPaletteOpen ? 'var(--lumina-active-bg)' : 'transparent',
                     color: isPaletteOpen ? 'var(--lumina-accent)' : 'var(--lumina-text-primary)',
                       }}
                 >
@@ -366,7 +358,7 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
                   <div
                     role="region"
                     aria-label="Ambiances de lecture"
-                    className="absolute right-0 top-full mt-2 w-72 rounded-2xl p-3 z-50 grid grid-cols-3 gap-1.5"
+                    className="absolute right-0 top-full mt-2 w-72 rounded-lg p-3 z-50 grid grid-cols-3 gap-1.5"
                     style={{
                       backgroundColor: 'var(--lumina-toolbar-bg)',
                             boxShadow: 'var(--lumina-shadow)',
@@ -385,7 +377,7 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
                             setTheme(item.id);
                             setIsPaletteOpen(false);
                           }}
-                          className="flex items-center gap-1.5 min-h-[44px] px-2 py-1.5 rounded-xl text-left text-xs font-medium transition-colors"
+                          className="flex items-center gap-1.5 min-h-[44px] px-2 py-1.5 rounded-md text-left text-xs font-medium transition-colors"
                           style={
                             selected
                               ? {
@@ -394,7 +386,6 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
                                   outline: '1.5px solid var(--lumina-accent)',
                                 }
                               : {
-                                  backgroundColor: 'var(--lumina-hover-bg)',
                                   color: 'var(--lumina-text-primary)',
                                 }
                           }
@@ -422,7 +413,7 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="inline-flex items-center justify-center gap-2 min-w-[44px] min-h-[44px] px-3.5 sm:px-4 rounded-full text-xs font-semibold transition-transform active:scale-95"
+              className="inline-flex items-center justify-center gap-2 min-w-[44px] min-h-[44px] px-3.5 sm:px-4 rounded-md text-sm font-semibold transition-colors"
               style={{
                 backgroundColor: 'var(--lumina-accent)',
                 color: 'var(--lumina-accent-fg)',
@@ -435,36 +426,22 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-10">
-        {/* En-tête éditorial */}
-        <div className="space-y-2 max-w-2xl">
-          <div
-            className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest"
-            style={{ color: 'var(--lumina-accent)' }}
-          >
-            <BookOpen className="w-3.5 h-3.5" />
-            <span>Bibliothèque locale</span>
-          </div>
-          <h1
-            className="text-2xl sm:text-4xl font-normal tracking-tight"
-            style={{ fontFamily: 'var(--font-display)' }}
-          >
-            Vos lectures en cours
-          </h1>
-          <p className="text-sm sm:text-base leading-relaxed" style={{ color: 'var(--lumina-text-secondary)' }}>
-            Vos PDF et votre progression sont conservés dans ce navigateur, sur cet appareil uniquement. Ce stockage n’est pas une sauvegarde indépendante : gardez vos fichiers d’origine.
-          </p>
-        </div>
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-7">
+        <h1
+          className="text-2xl font-normal tracking-tight"
+          style={{ fontFamily: 'var(--font-display)' }}
+        >
+          Bibliothèque
+        </h1>
 
         {(storageError || error) && (
           <p
             role="alert"
-            className="rounded-2xl px-4 py-3 text-sm"
+            className="rounded-lg px-4 py-3 text-sm"
             style={{
               backgroundColor: 'var(--lumina-toolbar-bg)',
               border: '1px solid var(--lumina-accent)',
               color: 'var(--lumina-text-primary)',
-              boxShadow: 'var(--lumina-shadow)',
             }}
           >
             {storageError || error}
@@ -473,9 +450,9 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
 
         {loading && <p role="status">Chargement de la bibliothèque…</p>}
         {readError && (
-          <div role="alert" className="rounded-2xl p-4 space-y-3" style={{ backgroundColor: 'var(--lumina-toolbar-bg)' }}>
+          <div role="alert" className="rounded-lg p-4 space-y-3" style={{ backgroundColor: 'var(--lumina-toolbar-bg)' }}>
             <p>{readError}</p>
-            <button type="button" onClick={() => void loadRecentFiles()} className="min-h-[44px] px-4 rounded-xl" style={{ backgroundColor: 'var(--lumina-accent)', color: 'var(--lumina-accent-fg)' }}>Réessayer</button>
+            <button type="button" onClick={() => void loadRecentFiles()} className="min-h-[44px] px-4 rounded-md" style={{ backgroundColor: 'var(--lumina-accent)', color: 'var(--lumina-accent-fg)' }}>Réessayer</button>
           </div>
         )}
 
@@ -484,31 +461,29 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
           <section aria-label="Reprendre la lecture" className="space-y-3">
             <div className="flex items-center justify-between">
               <h2
-                className="text-xs font-semibold uppercase tracking-wider flex items-center gap-2"
+                className="text-sm font-semibold"
                 style={{ color: 'var(--lumina-text-secondary)' }}
               >
-                <Clock className="w-3.5 h-3.5" style={{ color: 'var(--lumina-accent)' }} />
                 <span>Reprendre la lecture</span>
               </h2>
             </div>
 
             <div
               onClick={() => void handleOpen(heroFile)}
-              className="group relative rounded-3xl p-5 sm:p-7 cursor-pointer transition-all duration-200 hover:-translate-y-0.5 flex flex-col sm:flex-row items-start sm:items-center gap-5 sm:gap-7"
+              className="relative rounded-xl p-4 sm:p-5 cursor-pointer flex items-start sm:items-center gap-4 sm:gap-5"
               style={{
                 backgroundColor: 'var(--lumina-toolbar-bg)',
-                boxShadow: 'var(--lumina-shadow)',
+                border: '1px solid var(--lumina-filet)',
               }}
             >
-              {/* Vignette feuille papier stylisée */}
+              {/* Aperçu du document, ou format si indisponible */}
               <div
                 aria-hidden="true"
-                className="w-20 h-28 sm:w-24 sm:h-32 rounded-xl shrink-0 overflow-hidden flex flex-col justify-between select-none"
+                className="w-14 h-20 sm:w-20 sm:h-28 rounded shrink-0 overflow-hidden flex items-center justify-center select-none"
                 style={{
                   backgroundColor: 'var(--lumina-paper-bg)',
                   color: 'var(--lumina-paper-fg)',
                   border: '1px solid var(--lumina-filet-fort)',
-                  boxShadow: '0 6px 16px rgba(0,0,0,0.08)',
                 }}
               >
                 {heroFile.thumbnail ? (
@@ -519,35 +494,22 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
                     draggable={false}
                   />
                 ) : (
-                  <div className="p-3 h-full flex flex-col justify-between">
-                    <div className="space-y-1.5">
-                      <div className="w-8 h-1 rounded-full opacity-50" style={{ backgroundColor: 'var(--lumina-accent)' }} />
-                      <div className="w-full h-1 rounded-full opacity-25" style={{ backgroundColor: 'var(--lumina-paper-fg)' }} />
-                      <div className="w-4/5 h-1 rounded-full opacity-25" style={{ backgroundColor: 'var(--lumina-paper-fg)' }} />
-                      <div className="w-full h-1 rounded-full opacity-20" style={{ backgroundColor: 'var(--lumina-paper-fg)' }} />
-                    </div>
-                    <div
-                      className="text-[11px] font-medium tracking-tight"
-                      style={{ fontFamily: 'var(--font-display)', fontVariantNumeric: 'tabular-nums' }}
-                    >
-                      p. {heroFile.pageNumber || 1}
-                    </div>
-                  </div>
+                  <span className="text-sm font-medium">PDF</span>
                 )}
               </div>
 
               {/* Détails & Progression */}
-              <div className="flex-1 min-w-0 space-y-3 w-full">
+              <div className="flex-1 min-w-0 space-y-3">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 space-y-1">
+                  <div className="min-w-0 flex-1 space-y-1">
                     <span
-                      className="inline-block text-[11px] font-semibold uppercase tracking-wider"
-                      style={{ color: 'var(--lumina-accent)' }}
+                      className="block text-xs"
+                      style={{ color: 'var(--lumina-text-secondary)' }}
                     >
                       Dernière lecture · {formatDate(heroFile.lastVisited)}
                     </span>
                     <h3
-                      className="text-lg sm:text-2xl font-medium truncate"
+                      className="text-base sm:text-xl font-medium truncate"
                       style={{
                         fontFamily: 'var(--font-display)',
                         color: 'var(--lumina-text-primary)',
@@ -562,10 +524,9 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
                     type="button"
                     onClick={(e) => void handleDelete(e, heroFile.id)}
                     disabled={removing !== null}
-                    className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] rounded-full transition-colors shrink-0"
+                    className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] rounded-md transition-colors shrink-0"
                     style={{
                       color: 'var(--lumina-text-secondary)',
-                      backgroundColor: 'var(--lumina-hover-bg)',
                     }}
                     title={`Retirer ${heroFile.name} de la bibliothèque`}
                     aria-label={`Retirer ${heroFile.name} de la bibliothèque`}
@@ -577,11 +538,7 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
                 <div className="space-y-2 max-w-md">
                   <div className="flex items-center justify-between text-xs font-medium" style={{ fontVariantNumeric: 'tabular-nums' }}>
                     <span
-                      className="px-2.5 py-1 rounded-full font-semibold"
-                      style={{
-                        backgroundColor: 'var(--lumina-active-bg)',
-                        color: 'var(--lumina-accent)',
-                      }}
+                      style={{ color: 'var(--lumina-text-secondary)' }}
                     >
                       {formatPageProgress(heroFile)}
                     </span>
@@ -594,7 +551,7 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
 
                   {getProgressPercent(heroFile) !== null && (
                     <div
-                      className="w-full h-1.5 rounded-full overflow-hidden"
+                      className="w-full h-1 rounded-full overflow-hidden"
                       style={{ backgroundColor: 'var(--lumina-hover-bg)' }}
                     >
                       <div
@@ -610,7 +567,7 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
 
                 <button type="button" aria-label={`Reprendre ${heroFile.name} à la page ${heroFile.pageNumber || 1}`}
                   onClick={(event) => { event.stopPropagation(); void handleOpen(heroFile); }}
-                  className="min-h-[44px] px-4 rounded-full inline-flex items-center gap-2 text-xs font-semibold"
+                  className="min-h-[44px] px-4 rounded-md inline-flex items-center gap-2 text-sm font-semibold"
                   style={{ backgroundColor: 'var(--lumina-accent)', color: 'var(--lumina-accent-fg)' }}>
                   <span>Reprendre à la page {heroFile.pageNumber || 1}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -624,29 +581,24 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
         {otherFiles.length > 0 && (
           <section aria-label="Lectures récentes" className="space-y-3">
             <h2
-              className="text-xs font-semibold uppercase tracking-wider flex items-center gap-2"
+              className="text-sm font-semibold"
               style={{ color: 'var(--lumina-text-secondary)' }}
             >
-              <FileText className="w-3.5 h-3.5" style={{ color: 'var(--lumina-accent)' }} />
               <span>Autres documents récents</span>
             </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            <div className="recent-file-list">
               {otherFiles.map((file) => {
                 const pct = getProgressPercent(file);
                 return (
                   <div
                     key={file.id}
                     onClick={() => void handleOpen(file)}
-                    className="group relative rounded-2xl p-4 cursor-pointer transition-all duration-200 hover:-translate-y-0.5 flex items-center gap-3.5"
-                    style={{
-                      backgroundColor: 'var(--lumina-toolbar-bg)',
-                            boxShadow: 'var(--lumina-shadow)',
-                    }}
+                    className="recent-file-row py-3 cursor-pointer grid grid-cols-[2.75rem_minmax(0,1fr)] sm:grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1"
                   >
                     <div
                       aria-hidden="true"
-                      className="w-11 h-14 rounded-lg shrink-0 overflow-hidden flex flex-col items-center justify-center text-[11px] font-semibold select-none"
+                      className="w-11 h-14 row-span-2 sm:row-span-1 rounded shrink-0 overflow-hidden flex flex-col items-center justify-center text-[11px] font-semibold select-none"
                       style={{
                         backgroundColor: 'var(--lumina-paper-bg)',
                         color: 'var(--lumina-paper-fg)',
@@ -669,22 +621,15 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
                     <div className="flex-1 min-w-0 space-y-1.5">
                       <h3
                         className="text-sm sm:text-base font-medium truncate"
-                        style={{
-                          fontFamily: 'var(--font-display)',
-                          color: 'var(--lumina-text-primary)',
-                        }}
+                        style={{ color: 'var(--lumina-text-primary)' }}
                         title={file.name}
                       >
                         {file.name}
                       </h3>
 
-                      <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--lumina-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs" style={{ color: 'var(--lumina-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
                         <span
-                          className="font-semibold px-2 py-0.5 rounded-full"
-                          style={{
-                            backgroundColor: 'var(--lumina-active-bg)',
-                            color: 'var(--lumina-accent)',
-                          }}
+                          className="whitespace-nowrap"
                         >
                           {formatPageProgress(file)}
                         </span>
@@ -708,26 +653,27 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
                       )}
                     </div>
 
-                    <button type="button" aria-label={`Ouvrir ${file.name}`}
-                      onClick={(event) => { event.stopPropagation(); void handleOpen(file); }}
-                      className="min-h-[44px] px-3 rounded-full text-xs font-semibold"
-                      style={{ backgroundColor: 'var(--lumina-hover-bg)', color: 'var(--lumina-accent)' }}>
-                      Ouvrir
-                    </button>
-                    <button
-                      type="button"
-                      disabled={removing !== null}
-                      onClick={(e) => void handleDelete(e, file.id)}
-                      className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] rounded-full transition-colors shrink-0"
-                      style={{
-                        color: 'var(--lumina-text-secondary)',
-                        backgroundColor: 'var(--lumina-hover-bg)',
-                      }}
-                      title={`Retirer ${file.name} de la bibliothèque`}
-                      aria-label={`Retirer ${file.name} de la bibliothèque`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="col-start-2 sm:col-start-auto flex items-center gap-1">
+                      <button type="button" aria-label={`Ouvrir ${file.name}`}
+                        onClick={(event) => { event.stopPropagation(); void handleOpen(file); }}
+                        className="min-h-[44px] px-3 rounded-md text-sm font-semibold"
+                        style={{ color: 'var(--lumina-accent)' }}>
+                        Ouvrir
+                      </button>
+                      <button
+                        type="button"
+                        disabled={removing !== null}
+                        onClick={(e) => void handleDelete(e, file.id)}
+                        className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] rounded-md transition-colors shrink-0"
+                        style={{
+                          color: 'var(--lumina-text-secondary)',
+                        }}
+                        title={`Retirer ${file.name} de la bibliothèque`}
+                        aria-label={`Retirer ${file.name} de la bibliothèque`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -748,13 +694,10 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
               }
             }}
             onClick={() => fileInputRef.current?.click()}
-            className={`relative rounded-3xl p-7 sm:p-10 text-center cursor-pointer transition-all duration-200 ${
-              isDragging ? 'scale-[1.01]' : ''
-            }`}
+            className="rounded-lg px-4 py-4 sm:py-5 cursor-pointer transition-colors duration-200"
             style={{
-              backgroundColor: isDragging ? 'var(--lumina-active-bg)' : 'var(--lumina-paper-bg)',
-              border: `1.5px dashed ${isDragging ? 'var(--lumina-accent)' : 'var(--lumina-filet-fort)'}`,
-              boxShadow: 'var(--lumina-shadow)',
+              backgroundColor: isDragging ? 'var(--lumina-active-bg)' : 'transparent',
+              border: `1px solid ${isDragging ? 'var(--lumina-accent)' : 'var(--lumina-filet)'}`,
             }}
           >
             <input
@@ -770,57 +713,44 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
               }}
               className="hidden"
             />
-            <div className="flex flex-col items-center justify-center gap-3 max-w-md mx-auto">
-              <div
-                className="w-12 h-12 rounded-2xl flex items-center justify-center"
-                style={{
-                  backgroundColor: 'var(--lumina-active-bg)',
-                  color: 'var(--lumina-accent)',
-                }}
-              >
-                <Upload className="w-6 h-6" />
-              </div>
+            <div className="flex items-center gap-3">
+              <FileText aria-hidden="true" className="w-5 h-5 shrink-0" style={{ color: 'var(--lumina-text-secondary)' }} />
               <div className="space-y-1">
                 <h2
-                  className="text-base sm:text-lg font-medium"
-                  style={{ fontFamily: 'var(--font-display)' }}
+                  className="text-base font-medium"
                 >
                   {files.length === 0 && !loading && !readError
                     ? 'Ouvrez votre premier PDF'
-                    : 'Ouvrir un autre fichier PDF'}
+                    : 'Importer un PDF'}
                 </h2>
                 <p className="text-xs sm:text-sm" style={{ color: 'var(--lumina-text-secondary)' }}>
                   Touchez pour parcourir vos fichiers ou glissez-déposez un document PDF ici.
                 </p>
               </div>
-              <div
-                className="inline-flex items-center gap-1.5 text-[11px] font-medium px-3 py-1 rounded-full"
-                style={{
-                  backgroundColor: 'var(--lumina-hover-bg)',
-                  color: 'var(--lumina-text-secondary)',
-                }}
-              >
-                <Sparkles className="w-3 h-3" style={{ color: 'var(--lumina-accent)' }} />
-                <span>Conservez aussi vos fichiers d’origine</span>
-              </div>
             </div>
           </div>
         </section>
       </main>
-      <footer className="max-w-5xl mx-auto px-4 sm:px-6 pb-8 text-xs space-y-3" style={{ color: 'var(--lumina-text-secondary)' }}>
-        <p>Services facultatifs · aucune synchronisation entre appareils garantie.</p>
+      <footer className="max-w-5xl mx-auto px-4 sm:px-6 pb-8 text-xs space-y-2" style={{ color: 'var(--lumina-text-secondary)' }}>
+        <p className="max-w-2xl leading-relaxed">Documents et progression dans ce navigateur uniquement. Conservez vos fichiers d’origine : ce stockage n’est pas une sauvegarde indépendante.</p>
+        <p className="text-xs">Services facultatifs · aucune synchronisation entre appareils garantie.</p>
         <div className="flex flex-wrap gap-3">
           <button type="button" onClick={() => void handleCloud()} disabled={!cloudConfigured || remoteBusy}
-            className="min-h-[44px] px-4 rounded-xl disabled:opacity-60" style={{ backgroundColor: 'var(--lumina-hover-bg)', color: 'var(--lumina-text-primary)' }}>
+            className="min-h-[44px] px-3 rounded-md text-xs disabled:opacity-60" style={{ color: 'var(--lumina-text-primary)' }}>
             {cloudUser ? 'Déconnexion' : 'Connexion Cloud'}
           </button>
           <button type="button" onClick={() => void handleDriveOpen()} disabled={!driveConfigured || remoteBusy}
-            className="min-h-[44px] px-4 rounded-xl disabled:opacity-60" style={{ backgroundColor: 'var(--lumina-hover-bg)', color: 'var(--lumina-text-primary)' }}>
+            className="min-h-[44px] px-3 rounded-md text-xs disabled:opacity-60" style={{ color: 'var(--lumina-text-primary)' }}>
             Google Drive
           </button>
         </div>
-        {!cloudConfigured && <p>Connexion Cloud non configurée sur cette installation.</p>}
-        {!driveConfigured && <p>Google Drive non configuré sur cette installation.</p>}
+        {(!cloudConfigured || !driveConfigured) && (
+          <p>
+            {!cloudConfigured && 'Connexion Cloud non configurée.'}
+            {!cloudConfigured && !driveConfigured && ' '}
+            {!driveConfigured && 'Google Drive non configuré.'}
+          </p>
+        )}
         {remoteBusy && <p role="status">Connexion au service en cours…</p>}
       </footer>
     </div>

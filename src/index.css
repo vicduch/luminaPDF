@@ -480,7 +480,29 @@ body {
   }
 }
 
-/* Lecteur éditorial Option A : barre supérieure translucide, capsule inférieure et panneaux doux. */
+/* Finition des commandes et listes, limitée à la bibliothèque et aux outils du lecteur. */
+.library-view .recent-file-list {
+  border-top: 1px solid var(--lumina-filet);
+}
+
+.library-view .recent-file-row {
+  border-bottom: 1px solid var(--lumina-filet);
+}
+
+.reader-tools > section + section {
+  border-top: 1px solid var(--lumina-filet);
+}
+
+@media (hover: hover) {
+  .library-view button:not(:disabled):not([aria-pressed="true"]):hover,
+  .reader-topbar button:not(:disabled):not([aria-pressed="true"]):hover,
+  .reader-dock button:not(:disabled):hover,
+  #reader-outline button:hover {
+    box-shadow: inset 0 0 0 1px var(--lumina-filet-fort);
+  }
+}
+
+/* Barre supérieure translucide et navigation inférieure groupée. */
 .reader-topbar :is(button, input, select):focus-visible,
 .reader-dock :is(button, input):focus-visible,
 .reader-restore:focus-visible {

@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Outline } from 'react-pdf';
-import { X, BookOpen } from 'lucide-react';
+import { X } from 'lucide-react';
 import { AppTheme } from '../types';
 
 interface OutlinePanelProps {
@@ -32,11 +32,12 @@ const OutlinePanel: React.FC<OutlinePanelProps> = ({ isOpen, onClose, onItemClic
       id="reader-outline"
       hidden={!isOpen}
       aria-label="Table des matières"
-      className={`fixed top-14 left-3 z-40 w-80 max-w-[calc(100vw-24px)] max-h-[calc(100vh-128px)] flex flex-col rounded-2xl transition-all duration-200 ease-out transform ${isOpen ? 'translate-x-0 opacity-100' : '-translate-x-6 opacity-0 pointer-events-none'}`}
+      className={`fixed top-14 left-3 z-40 w-80 max-w-[calc(100vw-24px)] max-h-[calc(100vh-128px)] flex flex-col rounded-lg transition-all duration-200 ease-out transform ${isOpen ? 'translate-x-0 opacity-100' : '-translate-x-6 opacity-0 pointer-events-none'}`}
       style={{
         backgroundColor: 'var(--lumina-outline-bg)',
         color: 'var(--lumina-text-primary)',
         boxShadow: 'var(--lumina-shadow)',
+        border: '1px solid var(--lumina-filet)',
       }}
     >
       {/* En-tête éditorial sans bordure dure */}
@@ -44,13 +45,12 @@ const OutlinePanel: React.FC<OutlinePanelProps> = ({ isOpen, onClose, onItemClic
         className="flex items-center justify-between px-4 py-3"
       >
         <div className="flex items-center gap-2 font-medium text-sm" style={{ fontFamily: 'var(--font-display)' }}>
-          <BookOpen className="w-4 h-4" style={{ color: 'var(--lumina-accent)' }} />
           <span>Table des matières</span>
         </div>
         <button
           type="button"
           onClick={close}
-          className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] -mr-2 rounded-full transition-colors"
+          className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] -mr-2 rounded-md transition-colors"
           style={{ color: 'var(--lumina-text-secondary)' }}
           aria-label="Fermer la table des matières"
         >

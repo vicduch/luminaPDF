@@ -13,11 +13,11 @@
       "contrat": "docs/features/LUM-13-passe-ux.md, lot 1 : espace borné au document, page qui suit le doigt, bord tiré qui tourne une page agrandie, zones de toucher, molette PC en page par page, aimant d'ajustement. Aucun stockage, service distant ni Electron.",
       "reste": [
         "Essai physique sur Xiaomi Pad 6 et PC souris/trackpad, puis acceptation utilisateur.",
-        "Accord pour enregistrer les changements dans Git et les envoyer ; aucun déploiement autorisé."
+        "Commits locaux autorisés ; accord distinct encore attendu pour l'envoi au dépôt. Aucun déploiement autorisé."
       ],
       "relais": {
         "date": "2026-11-15",
-        "texte": "Reprise achevée localement sur base 058d500, index vide. Bilan et limites dans docs/features/LUM-13-passe-ux.md. Revue fresh Sol xhigh puis corrections par worker Sol high et relecture acceptée ; auteur de tests distinct Sol xhigh. Parent : Retour natif déclenché par swipe reproduit puis corrigé localement sans piège d'historique ; G4 11/11 et G2/G3/G5/G6 + Retour UX5 40/40. G8 4/4 après nettoyage Edge fiabilisé par auteur tests, assertions inchangées. TypeScript/build finaux et observation Edge graphique PC/tablette/360 réussis. Preuves non affectées conservées ; pas de prétendue nouvelle suite complète verte sur état unique. Changements préexistants préservés, aucun commit/push/déploiement."
+        "texte": "Reprise achevée localement sur base 058d500, index vide. Bilan et limites dans docs/features/LUM-13-passe-ux.md. Revue fresh Sol xhigh puis corrections par worker Sol high et relecture acceptée ; auteur de tests distinct Sol xhigh. Parent : Retour natif déclenché par swipe reproduit puis corrigé localement sans piège d'historique ; G4 11/11 et G2/G3/G5/G6 + Retour UX5 40/40. G8 4/4 après nettoyage Edge fiabilisé par auteur tests, assertions inchangées. TypeScript/build finaux et observation Edge graphique PC/tablette/360 réussis. Preuves non affectées conservées ; pas de prétendue nouvelle suite complète verte sur état unique. Changements préexistants préservés ; refonte enregistrée localement, aucun push ni déploiement."
       }
     },
     {
@@ -28,11 +28,11 @@
       "jalon": "ROADMAP.md#lecture-pwa-fiable",
       "contrat": "docs/features/LUM-13-passe-ux.md, lot 2 : maquette React hors dépôt validée par l'utilisateur (Option A) ; bandeau haut pleine largeur translucide sans contours latéraux, capsule de navigation en bas, immersion sans languette visible, outils et sommaire sans contours de sous-boîtes, neuf thèmes Jour/Nuit validés.",
       "reste": [
-        "Acceptation visuelle et essai utilisateur PC/Xiaomi ; accord Git et envoi distincts de tout déploiement."
+        "Acceptation visuelle et essai utilisateur PC/Xiaomi ; commits locaux autorisés, envoi au dépôt et déploiement non autorisés."
       ],
       "relais": {
         "date": "2026-11-15",
-        "texte": "Option A rétablie : bandeau translucide trois pôles, Sommaire direct, dock navigable, immersion sans languette, 18 palettes approuvées et licences locales. Relecture ciblée acceptée sans finding. UX7 18 variantes vertes ; mesures boutons accent/texte ≥7,06:1. Parent Edge graphique 1440×900, 800×1280, 1280×800 et 360×800 : commandes44px visibles, focus restitué, Jour/Nuit et mouvement réduit observés. Pas de validation WCAG globale, PWA installée ou Xiaomi ; aucune dépendance ni diffusion."
+        "texte": "Après la reprise revue, demande utilisateur d'affinage selon son guide anti-slop. Parcours assisté : worker fresh Sol high, quatre fichiers de présentation, aucune logique/palette/geste modifié, puis finition parent. Moins de pastilles, fonds et ombres ; commandes et typographie plus sobres, agencement Option A et cibles44px conservés. Parent Edge graphique PC 1440×900, tablette 800×1280 et petit écran 360×800, Jour/Nuit et outils, sans débordement relevé ; TypeScript/build finaux verts. Suites UX/régressions34/34 dont18palettes ; auteur tests fresh Sol high a corrigé uniquement une attente de publication AX, assertions préservées. Résultat local prêt au retour visuel ; commits locaux autorisés. Pas de nouveau test physique Xiaomi, de push ni de diffusion. Détails dans docs/features/LUM-13-passe-ux.md."
       }
     },
     {
@@ -81,11 +81,11 @@
       "jalon": "ROADMAP.md#lecture-pwa-fiable",
       "contrat": "docs/features/LUM-13-passe-ux.md, lot 3 (décision 2A) : mémoriser le nombre total de pages (numPages) pour afficher « Page X sur Y » et une barre d'avancement dans la carte Reprendre et la liste des lectures récentes ; miniatures, actions accessibles au doigt, services distants en pied de page.",
       "reste": [
-        "Essai et acceptation utilisateur de la bibliothèque réelle sur PC et Xiaomi ; accord Git. Services distants et hors ligne restent non qualifiés."
+        "Essai et acceptation utilisateur de la bibliothèque réelle sur PC et Xiaomi ; commits locaux autorisés, envoi au dépôt encore non autorisé. Services distants et hors ligne restent non qualifiés."
       ],
       "relais": {
         "date": "2026-11-15",
-        "texte": "Bibliothèque intégrée et corrigée : dernier retrait ne réapparaît plus, boutons Reprendre/Ouvrir natifs nommés, états chargement/vide/erreur et Réessayer. Tests indépendants UX1/2/6 verts, revue ciblée acceptée ; seule extension de stockage de reprise : libérer promesses rejetées sans modifier données/migration/schéma. Accès facultatifs Cloud/Drive rebranchés sans appel distant exercé ; promesses hors ligne retirées. Rendu Jour/Nuit et360px observé dans Edge graphique. Aucun commit/push ni déploiement ; anciens deltas de migration et tests storage-extra restent préexistants, non acceptés implicitement."
+        "texte": "Affinage demandé selon guide anti-slop : bibliothèque plus compacte, reprise sans ombre, lectures récentes en lignes, vrais aperçus ou fallback PDF, import discret et avertissement regroupé. Actions clavier/tactiles, erreurs, Réessayer et accès facultatifs inchangés ; aucun stockage/service modifié. Observation parent Edge graphique vide/plusieurs lectures, PC 1440×900, tablette 800×1280, petit écran 360×800 et Jour/Nuit ; cibles44px préservées. Suites UX/régressions34/34 après attente AX bornée ajoutée par auteur de tests indépendant, aucune garantie réduite. Commits locaux autorisés, aucun push ni déploiement ; anciens deltas de migration et storage-extra restent préexistants et exclus de ces commits. Attente de l'essai utilisateur."
       }
     },
     {

@@ -13,7 +13,6 @@ import {
   EyeOff,
   FileText,
   ArrowLeft,
-  Clock,
   SlidersHorizontal,
   Scan,
   StickyNote,
@@ -91,7 +90,7 @@ export const ReaderBottomDock: React.FC<ReaderBottomDockProps> = ({
         style={{
           backgroundColor: 'var(--lumina-toolbar-bg)',
           color: 'var(--lumina-text-primary)',
-          boxShadow: 'var(--lumina-shadow)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
           border: '1px solid var(--lumina-filet)',
         }}
       >
@@ -101,7 +100,7 @@ export const ReaderBottomDock: React.FC<ReaderBottomDockProps> = ({
           disabled={pageNumber <= 1 || !numPages}
           aria-label="Page précédente"
           title="Page précédente"
-          className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] rounded-full transition-colors disabled:opacity-35 disabled:pointer-events-none"
+          className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] rounded-md transition-colors disabled:opacity-35 disabled:pointer-events-none"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -126,7 +125,7 @@ export const ReaderBottomDock: React.FC<ReaderBottomDockProps> = ({
                 setPageInput(String(pageNumber));
               }
             }}
-            className="w-12 min-w-[44px] min-h-[44px] px-1 text-center text-xs font-semibold rounded-full bg-transparent focus:outline-none focus:ring-2"
+            className="w-12 min-w-[44px] min-h-[44px] px-1 text-center text-xs font-semibold rounded-md bg-transparent focus:outline-none focus:ring-2"
             style={{
               color: 'var(--lumina-text-primary)',
               border: '1px solid var(--lumina-filet-fort)',
@@ -147,7 +146,7 @@ export const ReaderBottomDock: React.FC<ReaderBottomDockProps> = ({
           disabled={pageNumber >= numPages || !numPages}
           aria-label="Page suivante"
           title="Page suivante"
-          className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] rounded-full transition-colors disabled:opacity-35 disabled:pointer-events-none"
+          className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] rounded-md transition-colors disabled:opacity-35 disabled:pointer-events-none"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -251,7 +250,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
             onClick={onHome}
             aria-label="Revenir à la bibliothèque"
             title="Revenir à la bibliothèque"
-            className="inline-flex items-center justify-center gap-1.5 min-w-[44px] min-h-[44px] px-2 rounded-full text-xs font-medium transition-colors shrink-0"
+            className="inline-flex items-center justify-center gap-1.5 min-w-[44px] min-h-[44px] px-2 rounded-md text-xs font-medium transition-colors shrink-0"
             style={{ color: 'var(--lumina-text-primary)' }}
           >
             <ArrowLeft className="w-4 h-4 shrink-0" />
@@ -275,7 +274,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
           <div
             role="group"
             aria-label="Mode de lecture"
-            className="inline-flex items-center rounded-full p-0.5"
+            className="inline-flex items-center rounded-lg p-0.5"
             style={{
               backgroundColor: 'var(--lumina-hover-bg)',
             }}
@@ -286,7 +285,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
               aria-label="Lecture continue"
               aria-pressed={isContinuous}
               title="Lecture continue"
-              className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] px-2 sm:px-3 rounded-full text-[11px] sm:text-xs font-medium transition-colors whitespace-nowrap"
+              className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] px-2 sm:px-3 rounded-md text-[11px] sm:text-xs font-medium transition-colors whitespace-nowrap"
               style={
                 isContinuous
                   ? {
@@ -306,7 +305,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
               aria-label="Lecture page par page"
               aria-pressed={!isContinuous}
               title="Lecture page par page"
-              className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] px-2 sm:px-3 rounded-full text-[11px] sm:text-xs font-medium transition-colors whitespace-nowrap"
+              className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] px-2 sm:px-3 rounded-md text-[11px] sm:text-xs font-medium transition-colors whitespace-nowrap"
               style={
                 !isContinuous
                   ? {
@@ -327,7 +326,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <div className="reader-actions flex items-center justify-end gap-1 shrink-0">
           <button type="button" onClick={toggleOutline}
             aria-label="Sommaire" aria-expanded={isOutlineOpen} aria-controls="reader-outline" title="Sommaire (L)"
-            className="inline-flex items-center justify-center gap-1.5 min-w-[44px] min-h-[44px] px-2 sm:px-3 rounded-full text-xs font-medium"
+            className="inline-flex items-center justify-center gap-1.5 min-w-[44px] min-h-[44px] px-2 sm:px-3 rounded-md text-xs font-medium"
             style={isOutlineOpen ? { backgroundColor: 'var(--lumina-active-bg)', color: 'var(--lumina-accent)' } : { color: 'var(--lumina-text-primary)' }}>
             <BookOpen className="w-4 h-4 shrink-0" />
             <span className="hidden md:inline">Sommaire</span>
@@ -338,7 +337,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
             disabled={!numPages}
             aria-label="Ajuster la page"
             title="Ajuster la page (W)"
-            className="inline-flex items-center justify-center gap-1.5 min-w-[44px] min-h-[44px] px-2 sm:px-3 rounded-full text-xs font-medium transition-colors disabled:opacity-40"
+            className="inline-flex items-center justify-center gap-1.5 min-w-[44px] min-h-[44px] px-2 sm:px-3 rounded-md text-xs font-medium transition-colors disabled:opacity-40"
             style={{ color: 'var(--lumina-text-primary)' }}
           >
             <Scan className="w-4 h-4 shrink-0" />
@@ -353,7 +352,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
             aria-expanded={toolsOpen}
             aria-controls="reader-tools"
             title="Outils de lecture"
-            className="relative inline-flex items-center justify-center gap-1.5 min-w-[44px] min-h-[44px] px-2 sm:px-3 rounded-full text-xs font-medium transition-colors"
+            className="relative inline-flex items-center justify-center gap-1.5 min-w-[44px] min-h-[44px] px-2 sm:px-3 rounded-md text-xs font-medium transition-colors"
             style={
               toolsOpen || isAnnotationMode
                 ? { backgroundColor: 'var(--lumina-active-bg)', color: 'var(--lumina-accent)' }
@@ -378,7 +377,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
           id="reader-tools"
           role="region"
           aria-label="Outils de lecture"
-          className="reader-tools absolute right-2 top-full mt-2 w-[min(22.5rem,calc(100vw-1rem))] max-h-[calc(100vh-5rem)] overflow-y-auto rounded-2xl p-4 space-y-4 z-50"
+          className="reader-tools absolute right-2 top-full mt-2 w-[min(22.5rem,calc(100vw-1rem))] max-h-[calc(100vh-5rem)] overflow-y-auto rounded-lg p-4 space-y-4 z-50"
           style={{
             backgroundColor: 'var(--lumina-toolbar-bg)',
             border: '1px solid var(--lumina-filet)',
@@ -396,7 +395,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                 setToolsOpen(false);
                 toolsButtonRef.current?.focus();
               }}
-              className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] -my-2 -mr-2 rounded-full text-xs font-medium"
+              className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] -my-2 -mr-2 rounded-md text-xs font-medium"
               style={{ color: 'var(--lumina-text-secondary)' }}
             >
               <X className="w-4 h-4" />
@@ -411,9 +410,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
                 type="button"
                 onClick={() => setScale(Math.max(0.1, scale / 1.15))}
                 aria-label="Réduire le zoom"
-                className="inline-flex items-center justify-center gap-1.5 min-w-[44px] min-h-[44px] px-3 rounded-xl text-xs font-medium transition-colors"
+                className="inline-flex items-center justify-center gap-1.5 min-w-[44px] min-h-[44px] px-3 rounded-md text-xs font-medium transition-colors"
                 style={{
-                  backgroundColor: 'var(--lumina-hover-bg)',
                   color: 'var(--lumina-text-primary)',
                 }}
               >
@@ -433,9 +431,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
                 type="button"
                 onClick={() => setScale(Math.min(8, scale * 1.15))}
                 aria-label="Augmenter le zoom"
-                className="inline-flex items-center justify-center gap-1.5 min-w-[44px] min-h-[44px] px-3 rounded-xl text-xs font-medium transition-colors"
+                className="inline-flex items-center justify-center gap-1.5 min-w-[44px] min-h-[44px] px-3 rounded-md text-xs font-medium transition-colors"
                 style={{
-                  backgroundColor: 'var(--lumina-hover-bg)',
                   color: 'var(--lumina-text-primary)',
                 }}
               >
@@ -447,7 +444,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
             <div
               role="group"
               aria-label="Variante de luminosité"
-              className="grid grid-cols-2 gap-1.5 p-1 rounded-xl"
+              className="grid grid-cols-2 gap-1.5 p-1 rounded-lg"
               style={{ backgroundColor: 'var(--lumina-hover-bg)' }}
             >
               <button
@@ -499,7 +496,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                     aria-label={item.name}
                     onClick={() => setTheme(item.id)}
                     aria-pressed={isSelected}
-                    className="flex items-center gap-2 min-h-[44px] px-2.5 py-1.5 rounded-xl text-left text-xs font-medium transition-all"
+                    className="flex items-center gap-2 min-h-[44px] px-2.5 py-1.5 rounded-md text-left text-xs font-medium transition-colors"
                     style={
                       isSelected
                         ? {
@@ -508,7 +505,6 @@ const Toolbar: React.FC<ToolbarProps> = ({
                             outline: '1.5px solid var(--lumina-accent)',
                           }
                         : {
-                            backgroundColor: 'var(--lumina-hover-bg)',
                             color: 'var(--lumina-text-primary)',
                           }
                     }
@@ -538,7 +534,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
             className="space-y-2.5 pt-3"
           >
             <div className="flex items-center justify-between gap-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--lumina-text-secondary)' }}>
+              <h3 className="text-sm font-semibold" style={{ color: 'var(--lumina-text-secondary)' }}>
                 Notes
               </h3>
             </div>
@@ -547,7 +543,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
               type="button"
               onClick={toggleAnnotationMode}
               aria-pressed={isAnnotationMode}
-              className="w-full inline-flex items-center justify-center gap-2 min-h-[44px] px-3 rounded-xl text-xs font-semibold transition-colors"
+              className="w-full inline-flex items-center justify-center gap-2 min-h-[44px] px-3 rounded-md text-xs font-semibold transition-colors"
               style={
                 isAnnotationMode
                   ? { backgroundColor: 'var(--lumina-accent)', color: 'var(--lumina-accent-fg)' }
@@ -569,7 +565,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                     aria-label={color.label}
                     aria-pressed={selected}
                     title={color.label}
-                    className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] rounded-xl transition-transform"
+                    className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] rounded-md transition-transform"
                     style={{
                       backgroundColor: selected ? 'var(--lumina-active-bg)' : 'transparent',
                     }}
@@ -603,9 +599,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
                 setToolsOpen(false);
                 fileInputRef.current?.click();
               }}
-              className="inline-flex items-center gap-2 min-h-[44px] px-3 rounded-xl text-xs font-medium transition-colors"
+              className="inline-flex items-center gap-2 min-h-[44px] px-3 rounded-md text-xs font-medium transition-colors"
               style={{
-                backgroundColor: 'var(--lumina-hover-bg)',
                 color: 'var(--lumina-text-primary)',
               }}
             >
@@ -620,9 +615,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
                 setToolsOpen(false);
                 toolsButtonRef.current?.focus();
               }}
-              className="inline-flex items-center gap-2 min-h-[44px] px-3 rounded-xl text-xs font-medium transition-colors col-span-2"
+              className="inline-flex items-center gap-2 min-h-[44px] px-3 rounded-md text-xs font-medium transition-colors col-span-2"
               style={{
-                backgroundColor: 'var(--lumina-hover-bg)',
                 color: 'var(--lumina-text-primary)',
               }}
             >
@@ -634,9 +628,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
               type="button"
               onClick={toggleFullscreen}
               aria-pressed={isFullscreen}
-              className="inline-flex items-center gap-2 min-h-[44px] px-3 rounded-xl text-xs font-medium transition-colors"
+              className="inline-flex items-center gap-2 min-h-[44px] px-3 rounded-md text-xs font-medium transition-colors"
               style={{
-                backgroundColor: 'var(--lumina-hover-bg)',
                 color: 'var(--lumina-text-primary)',
               }}
             >
@@ -650,9 +643,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
                 setToolsOpen(false);
                 toggleVisibility();
               }}
-              className="inline-flex items-center gap-2 min-h-[44px] px-3 rounded-xl text-xs font-medium transition-colors"
+              className="inline-flex items-center gap-2 min-h-[44px] px-3 rounded-md text-xs font-medium transition-colors"
               style={{
-                backgroundColor: 'var(--lumina-hover-bg)',
                 color: 'var(--lumina-text-primary)',
               }}
             >
@@ -667,8 +659,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
               aria-label="Lectures récentes"
               className="space-y-1.5 pt-3"
               >
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--lumina-text-secondary)' }}>
-                <Clock className="w-3.5 h-3.5" />
+              <div className="text-sm font-semibold" style={{ color: 'var(--lumina-text-secondary)' }}>
                 <span>Lectures récentes</span>
               </div>
               <div className="max-h-36 overflow-y-auto space-y-1">
@@ -681,7 +672,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                       onOpenRecentFile(recent.id);
                       setToolsOpen(false);
                     }}
-                    className="w-full flex items-center gap-2 min-h-[44px] px-2.5 py-1.5 rounded-xl text-left text-xs transition-colors"
+                    className="w-full flex items-center gap-2 min-h-[44px] px-2.5 py-1.5 rounded-md text-left text-xs transition-colors"
                     style={{ color: 'var(--lumina-text-primary)' }}
                   >
                     <FileText className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--lumina-accent)' }} />
