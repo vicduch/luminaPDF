@@ -1,6 +1,7 @@
 // Helpers CDP pour les preuves de conservation (LUM-4). Additif : ne modifie pas reader-cdp.mjs.
 import { createHash } from 'node:crypto';
 import { pause, eventually } from './reader-cdp.mjs';
+import { chooseMode, isModeActive } from './helpers/reading-mode.mjs';
 
 export { pause, eventually };
 export const sha256Id = bytes => `sha256-${createHash('sha256').update(bytes).digest('hex')}`;
@@ -244,11 +245,11 @@ export const CONTINUOUS = 'Lecture continue', PAGED = 'Lecture page par page';
 export const HOME = 'Revenir à la bibliothèque';
 
 export const counter = async r => Number(await r.control('spinbutton', PAGE, function () { return this.value; }));
+// LUM-16 : le mode se choisit et se lit dans le panneau « Outils de lecture » (rouvert puis refermé).
 export async function setMode(r, name) {
-  await r.control('button', name);
-  await eventually(() => r.control('button', name, function () { return this.getAttribute('aria-pressed') === 'true'; }), `${name} active`);
+  await chooseMode(r, name);
 }
-export const currentMode = async r => (await r.control('button', CONTINUOUS, function () { return this.getAttribute('aria-pressed') === 'true'; })) ? 'continuous' : 'paged';
+export const currentMode = async r => (await isModeActive(r, CONTINUOUS)) ? 'continuous' : 'paged';
 export async function goTo(r, n) {
   await r.control('spinbutton', PAGE, function (n) {
     this.focus();

@@ -267,7 +267,13 @@ function paintIssues(actual, p) {
   // Le bandeau peut être translucide : sa couleur de surface doit rester celle approuvée.
   const channels = actual.surface?.match(/[\d.]+/g)?.map(Number);
   if (!channels || channels.slice(0, 3).some((v, i) => Math.abs(v - rgb(p.surface)[i]) > 0.5) || (channels[3] ?? 1) < 0.8) {
-    issues.push(`surface réellement affichée: ${actual.surface} ne correspond pas à ${p.surface}`);
+    issues.push(`surface réellement affichée (panneau #reader-tools ouvert): ${actual.surface} ne correspond pas à ${p.surface}`);
+  }
+  // LUM-16 : l'en-tête n'a pas de fond propre ; son fond effectif est celui du bureau (ou de la surface).
+  const header = actual.header?.match(/[\d.]+/g)?.map(Number);
+  const sameRgb = hex => header && header.slice(0, 3).every((v, i) => Math.abs(v - rgb(hex)[i]) <= 0.5);
+  if (!header || !(sameRgb(p.desk) || sameRgb(p.surface))) {
+    issues.push(`fond effectif de l'en-tête #reader-toolbar: ${actual.header} n'est égal ni à desk ${p.desk} ni à surface ${p.surface}`);
   }
   return issues;
 }

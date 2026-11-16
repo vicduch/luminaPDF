@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { launch, openReader, eventually, pause } from './reader-cdp.mjs';
+import { chooseMode, openToolsPanel, closeToolsPanel, modeStates } from './helpers/reading-mode.mjs';
 
 const fixture = fileURLToPath(new URL('./fixtures/reader-5-pages.pdf', import.meta.url));
 const CONTINUOUS = 'Lecture continue';
@@ -30,6 +31,28 @@ const exceeding = r => r.evaluate(() => {
   return { x: width > c.clientWidth + 1, y: height > c.clientHeight + 1 };
 });
 
+// LUM-16 : le point médian idéal n'est pas toujours atteignable (G2 « là où la position ancrée est
+// atteignable », bornée par G1). Position idéale du bord de page = position réelle − écart d'ancrage ; les bornes
+// viennent de la géométrie réelle (défilement du conteneur : le bord de page bouge 1:1 avec scrollLeft/Top).
+// Atteignable : écart à l'idéal ≤ 8 px (garantie d'origine). Sinon : document plaqué contre la borne du bon côté
+// (scroll au maximum si l'idéal est au-delà du bord de fin, au minimum s'il est avant celui de début).
+const reachable = (r, after, dx, dy) => r.evaluate((after, dx, dy) => {
+  const c = document.querySelector('.pdf-viewer-container');
+  const axis = (edge, scroll, range, shift) => {
+    const ideal = edge - shift, max = edge + scroll, min = edge - (range - scroll); // positions possibles du bord de page
+    const reachableIdeal = ideal >= min - 1 && ideal <= max + 1;
+    const nearest = Math.min(max, Math.max(min, ideal));
+    const gap = edge - nearest;
+    const flush = ideal < min ? range - scroll <= 2 : scroll <= 2; // idéal avant le bord de fin => scroll au maximum
+    return { ideal: Math.round(ideal * 10) / 10, reachableIdeal, gapToReachable: Math.round(gap * 10) / 10, flush,
+      ok: Math.abs(gap) <= 8 && (reachableIdeal || flush) };
+  };
+  return {
+    x: axis(after.x, c.scrollLeft, c.scrollWidth - c.clientWidth, dx),
+    y: axis(after.y, c.scrollTop, c.scrollHeight - c.clientHeight, dy),
+  };
+}, after, dx, dy);
+
 async function atPage(r, n) {
   await eventually(async () => {
     if (await active(r) !== n) return false;
@@ -55,12 +78,9 @@ async function enter(r, text) {
   await r.key('Enter', 'Enter', 13);
 }
 async function go(r, n) { await enter(r, String(n)); await atPage(r, n); }
-async function mode(r, name) {
-  await r.control('button', name);
-  await eventually(() => r.control('button', name, function () { return this.getAttribute('aria-pressed') === 'true'; }), `${name} active`);
-  const other = name === PAGED ? CONTINUOUS : PAGED;
-  assert.equal(await r.control('button', other, function () { return this.getAttribute('aria-pressed'); }), 'false');
-}
+// LUM-16 : le mode passe par le panneau « Outils de lecture » (ouvrir, activer, aria-pressed du mode
+// choisi vrai et de l'autre faux, refermer en attendant la fermeture).
+async function mode(r, name) { await chooseMode(r, name); }
 async function fit(r) {
   const inPanel = !await r.hasControl('button', FIT);
   if (inPanel) await r.control('button', TOOLS);
@@ -115,8 +135,10 @@ async function pinch(r, leaveOneFinger = false) {
   const pinchOver = await exceeding(r);
   const pinchDx = after.x + (p.x - before.x) / before.width * after.width - p.x;
   const pinchDy = after.y + (p.y - before.y) / before.height * after.height - p.y;
-  assert.ok((!pinchOver.x || Math.abs(pinchDx) <= 8) && (!pinchOver.y || Math.abs(pinchDy) <= 8),
-    `pinch midpoint stays anchored on every axis where the enlarged document exceeds the reader area (LUM-13 G2): ${JSON.stringify({ pinchOver, pinchDx, pinchDy })}`);
+  const pinchReach = await reachable(r, after, pinchDx, pinchDy);
+  const anchored = axis => !pinchOver[axis] || pinchReach[axis].ok;
+  assert.ok(anchored('x') && anchored('y'),
+    `pinch midpoint stays anchored on every axis where the enlarged document exceeds the reader area, or flush against the scroll bound on the correct side when the ideal position is unreachable (LUM-13 G2): ${JSON.stringify({ pinchOver, pinchDx, pinchDy, pinchReach })}`);
   if (leaveOneFinger) {
     // A smaller active touch set releases contact 2; CDP touchEnd itself must be empty.
     await touch(r, 'touchMove', [{ id: 1, x: p.x - 120, y: p.y }]);
@@ -138,14 +160,18 @@ test('reader public browser contract', { timeout: 240_000 }, async t => {
   }
 
   for (const [device, width, height] of [['PC', 1440, 1000], ['tablet portrait', 900, 1280]]) {
-    await scenario(`${device}: direct modes, real scrolling and preserved page`, width, height, async r => {
+    await scenario(`${device}: modes via the Tools panel, real scrolling and preserved page`, width, height, async r => {
+      // LUM-16 : la garantie « mode atteignable d'un geste depuis la barre » est abandonnée ;
+      // libellés visibles et présence dans la fenêtre sont désormais vérifiés dans le panneau ouvert.
+      await openToolsPanel(r);
       for (const name of [CONTINUOUS, PAGED]) {
         assert.equal(await r.control('button', name, function () { return this.innerText.trim(); }), name === CONTINUOUS ? 'Continu' : 'Page par page');
         assert.equal(await r.control('button', name, function () {
           const p = this.getBoundingClientRect();
           return p.width > 0 && p.height > 0 && p.left >= 0 && p.right <= innerWidth && p.top >= 0 && p.bottom <= innerHeight;
-        }), true, `${name} directly visible without menu`);
+        }), true, `${name} visible in the opened Tools panel`);
       }
+      await closeToolsPanel(r);
       await mode(r, CONTINUOUS);
       await go(r, 1);
       await fit(r);
@@ -265,7 +291,7 @@ test('reader public browser contract', { timeout: 240_000 }, async t => {
     await fit(r);
     await pinch(r);
     await unchanged(r, 3, 'continuous pinch does not change reading mode or page');
-    assert.equal(await r.control('button', CONTINUOUS, function () { return this.getAttribute('aria-pressed'); }), 'true');
+    assert.equal((await modeStates(r))[CONTINUOUS], 'true');
   });
 
   await scenario('tools geometry, effective Escape/focus; 360px targets and overflow', 1280, 900, async r => {
@@ -297,7 +323,8 @@ test('reader public browser contract', { timeout: 240_000 }, async t => {
     }), 'panel actually hidden, not merely moved offscreen');
     await r.resize(360, 800);
     await pause(350);
-    for (const [role, name] of [['button', CONTINUOUS], ['button', PAGED], ['button', TOOLS], ['spinbutton', PAGE]]) {
+    // LUM-16 : les boutons de mode ne sont plus dans la barre ; leurs cibles ≥ 44 px se mesurent dans le panneau.
+    for (const [role, name] of [['button', TOOLS], ['spinbutton', PAGE]]) {
       const p = await r.control(role, name, function () {
         const p = this.getBoundingClientRect();
         return { width: p.width, height: p.height, left: p.left, right: p.right, top: p.top, bottom: p.bottom };
@@ -305,6 +332,16 @@ test('reader public browser contract', { timeout: 240_000 }, async t => {
       assert.ok(p.width >= 44 && p.height >= 44, `${name} touch target >=44px`);
       assert.ok(p.left >= -1 && p.right <= 361 && p.top >= 0 && p.bottom <= 800, `${name} stays visible at 360px`);
     }
+    await openToolsPanel(r);
+    for (const name of [CONTINUOUS, PAGED]) {
+      const p = await r.control('button', name, function () {
+        const p = this.getBoundingClientRect();
+        return { width: p.width, height: p.height, left: p.left, right: p.right, top: p.top, bottom: p.bottom };
+      });
+      assert.ok(p.width >= 44 && p.height >= 44, `${name} touch target >=44px in the Tools panel`);
+      assert.ok(p.left >= -1 && p.right <= 361 && p.top >= 0 && p.bottom <= 800, `${name} stays visible at 360px in the Tools panel`);
+    }
+    await closeToolsPanel(r);
     assert.equal(await r.evaluate(() => {
       const bar = document.querySelector('#reader-toolbar[role="toolbar"][aria-label="Commandes de lecture"]');
       if (!bar) return false;

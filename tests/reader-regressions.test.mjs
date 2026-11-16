@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { launch, openReader, eventually, pause } from './reader-cdp.mjs';
+import { chooseMode, openToolsPanel, closeToolsPanel } from './helpers/reading-mode.mjs';
 
 const pdf = name => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
 const ordinary = pdf('reader-5-pages.pdf');
@@ -48,10 +49,8 @@ async function at(r, n) {
 function samePosition(before, after, message) {
   assert.ok(before && after && ['left', 'top', 'width', 'height'].every(k => Math.abs(before[k] - after[k]) <= 2), message);
 }
-async function mode(r, name) {
-  await r.control('button', name);
-  await eventually(() => r.control('button', name, function () { return this.getAttribute('aria-pressed') === 'true'; }), `${name} active`);
-}
+// LUM-16 : le mode passe par le panneau « Outils de lecture » (ouvrir, activer, aria-pressed, refermer).
+async function mode(r, name) { await chooseMode(r, name); }
 async function go(r, n) {
   await r.control('spinbutton', PAGE, function (n) {
     this.focus();
@@ -190,7 +189,8 @@ test('closed auxiliary panels and retained assistant draft', { timeout: 120_000 
     const draft = 'Brouillon local de test, sans envoi.';
     const pressS = async () => {
       // Le raccourci part toujours d’un bouton non éditable, jamais de la saisie.
-      await r.control('button', PAGED, function () { this.focus(); });
+      // LUM-16 : le bouton de mode vit dans le panneau fermé ; le bouton visible « Outils de lecture » sert de point de départ.
+      await r.control('button', TOOLS, function () { this.focus(); });
       await r.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 's', code: 'KeyS', windowsVirtualKeyCode: 83, text: 's', unmodifiedText: 's' });
       await r.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 's', code: 'KeyS', windowsVirtualKeyCode: 83 });
     };
@@ -228,11 +228,29 @@ test('reader targeted public regressions', { timeout: 300_000 }, async t => {
     await go(r, 1);
     const before = await fit(r, 1);
     entirelyVisible(before, 1);
-    const p = surface(before);
     const deltaY = pageIn(before, 1).height * 1.2;
-    // No pause, AX query or geometry read between mode activation and this single trusted wheel gesture.
+    // LUM-16 : le mode s'active dans le panneau Outils, qui reste OUVERT jusqu'après la molette. Le point de
+    // molette est calculé à l'avance sur une portion du PDF que le panneau ne recouvre pas (vérifié par
+    // elementFromPoint, panneau ouvert). Entre le clic sur « Lecture continue » et la molette unique : aucune
+    // pause, requête d'accessibilité, lecture de géométrie ni fermeture du panneau.
+    await openToolsPanel(r);
+    const p = await r.evaluate(page => {
+      const tools = document.querySelector('#reader-tools').getBoundingClientRect();
+      const left = Math.max(page.left, 0), right = Math.min(page.right, tools.left, innerWidth);
+      const top = Math.max(page.top, 0), bottom = Math.min(page.bottom, innerHeight);
+      if (right - left < 100 || bottom - top < 100) return { error: `aucune portion du PDF exposée à ${innerWidth}px panneau ouvert` };
+      const x = left + (right - left) * 0.6, y = top + (bottom - top) * 0.55;
+      const hit = document.elementFromPoint(x, y);
+      if (!hit || hit.closest('#reader-tools')) return { error: 'le point de molette est recouvert par le panneau' };
+      if (!hit.closest('.pdf-viewer-container')) return { error: `le point de molette n'est pas sur le lecteur (${hit.tagName})` };
+      return { x, y };
+    }, pageIn(before, 1));
+    assert.ok(!p.error, p.error);
     await r.control('button', CONTINUOUS);
     await r.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: p.x, y: p.y, deltaX: 0, deltaY });
+    // Après le geste seulement : mode actif, puis fermeture du panneau (assertions existantes inchangées).
+    assert.equal(await r.control('button', CONTINUOUS, function () { return this.getAttribute('aria-pressed'); }), 'true', 'Lecture continue actif');
+    await closeToolsPanel(r);
     const moved = await settled(r, s => s.central > 1);
     const n = moved.central;
     assert.ok(n > 1, 'a real page boundary was crossed, independently of the counter');
@@ -286,13 +304,15 @@ test('reader targeted public regressions', { timeout: 300_000 }, async t => {
       await r.key('PageUp', 'PageUp', 33);
       await at(r, 3);
 
-      // Activating a visible toolbar command leaves button focus, not a text-editing context.
+      // Activating a visible command (mode button, now in the opened Tools panel) leaves button focus, not a text-editing context.
+      await openToolsPanel(r);
       await r.control('button', name);
       assert.equal(await r.control('button', name, function () { return document.activeElement === this; }), true);
       await r.key('PageDown', 'PageDown', 34);
       await at(r, 4);
       await r.key('PageUp', 'PageUp', 33);
       await at(r, 3);
+      await closeToolsPanel(r);
 
       const beforeEdit = pageIn(await geometry(r), 3);
       await r.control('spinbutton', PAGE, function () { this.focus(); });

@@ -2,6 +2,7 @@
 // entrées CDP de confiance (toucher, molette, souris). Aucun accès au code de production.
 import assert from 'node:assert/strict';
 import { eventually, pause } from '../reader-cdp.mjs';
+import { chooseMode } from './reading-mode.mjs';
 
 export { pause, eventually };
 export const CONTINUOUS = 'Lecture continue';
@@ -127,9 +128,10 @@ export async function enter(r, text) {
   }, [text]);
   await r.key('Enter', 'Enter', 13);
 }
+// LUM-16 : le mode se choisit dans le panneau « Outils de lecture » (ouvrir, activer, vérifier
+// aria-pressed, refermer et attendre la fermeture avant de poursuivre les gestes).
 export async function mode(r, name) {
-  await r.control('button', name);
-  await until(async () => ({ ok: await r.control('button', name, function () { return this.getAttribute('aria-pressed') === 'true'; }) }), `${name} actif`);
+  await chooseMode(r, name);
 }
 export async function go(r, n) {
   await enter(r, String(n));

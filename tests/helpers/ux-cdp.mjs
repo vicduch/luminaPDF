@@ -1,6 +1,7 @@
 // Sondes UX exclusivement boîte noire : accessibilité, gestes natifs et styles affichés.
 import assert from 'node:assert/strict';
 import { eventually, pause, counter, dominantPage } from '../storage-cdp.mjs';
+import { openToolsPanel, closeToolsPanel, toolsPanelOpen } from './reading-mode.mjs';
 
 export const axControls = async r => (await r.send('Accessibility.getFullAXTree')).nodes
   .filter(n => !n.ignored).map(n => ({ role: n.role?.value, name: n.name?.value, id: n.backendDOMNodeId }));
@@ -80,8 +81,18 @@ const luminance = hex => rgb(hex).map(v => v / 255).map(v => v <= 0.04045 ? v / 
   .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
 export const contrast = (a, b) => (Math.max(luminance(a), luminance(b)) + 0.05) / (Math.min(luminance(a), luminance(b)) + 0.05);
 
-/** Valeurs calculées et surfaces réelles : aucune importation du gestionnaire de thèmes. */
-export const palettePaint = r => r.evaluate(() => {
+/**
+ * Valeurs calculées et surfaces réelles : aucune importation du gestionnaire de thèmes.
+ * LUM-16 : la « surface » d'interface mesurée est le fond du panneau #reader-tools ouvert (ouvert pour
+ * la mesure, refermé ensuite s'il ne l'était pas) ; l'en-tête #reader-toolbar n'a plus de fond propre,
+ * `header` donne son fond effectif (premier ancêtre non transparent).
+ */
+export async function palettePaint(r) {
+  const wasOpen = await toolsPanelOpen(r);
+  if (!wasOpen) await openToolsPanel(r);
+  try { return await measurePalette(r); } finally { if (!wasOpen) await closeToolsPanel(r); }
+}
+const measurePalette = r => r.evaluate(() => {
   const css = getComputedStyle(document.documentElement);
   const tokens = Object.fromEntries(['desk', 'surface', 'page', 'ink', 'text', 'muted', 'accent'].map(k => [k, css.getPropertyValue(`--${k}`).trim().toUpperCase()]));
   const background = start => {
@@ -100,7 +111,9 @@ export const palettePaint = r => r.evaluate(() => {
   const matrices = [...references].map(m => document.getElementById(m[1])?.querySelector('feColorMatrix'))
     .filter(Boolean).map(e => ({ type: e.getAttribute('type'), values: e.getAttribute('values').trim().split(/[\s,]+/).map(Number) }));
   const toolbar = document.querySelector('#reader-toolbar');
+  const tools = document.querySelector('#reader-tools');
   return { tokens, desk: background(document.querySelector('#pdf-workspace')),
-    surface: toolbar && getComputedStyle(toolbar).backgroundColor,
+    surface: tools && getComputedStyle(tools).backgroundColor,
+    header: toolbar && background(toolbar),
     text: toolbar && getComputedStyle(toolbar).color, filters, matrices };
 });
