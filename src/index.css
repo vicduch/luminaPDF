@@ -480,133 +480,233 @@ body {
   }
 }
 
-/* Finition des commandes et listes, limitée à la bibliothèque et aux outils du lecteur. */
-.library-view .recent-file-list {
-  border-top: 1px solid var(--lumina-filet);
+/* LUM-16 — langage manuel OneLearn, palettes existantes inchangées. */
+:root {
+  --lumina-grain-light: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n' x='0' y='0' width='100%25' height='100%25' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.12  0 0 0 0 0.11  0 0 0 0 0.10  4 0 0 0 -2'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)' opacity='.05'/%3E%3C/svg%3E");
+  --lumina-grain-dark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n' x='0' y='0' width='100%25' height='100%25' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.90  0 0 0 0 0.87  0 0 0 0 0.83  4 0 0 0 -2'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)' opacity='.03'/%3E%3C/svg%3E");
 }
+.lumina-app { --lumina-grain: var(--lumina-grain-light); background-image: var(--lumina-grain); }
+.lumina-app.dark { --lumina-grain: var(--lumina-grain-dark); }
+[hidden] { display: none !important; }
 
-.library-view .recent-file-row {
-  border-bottom: 1px solid var(--lumina-filet);
-}
-
-.reader-tools > section + section {
-  border-top: 1px solid var(--lumina-filet);
-}
-
-@media (hover: hover) {
-  .library-view button:not(:disabled):not([aria-pressed="true"]):hover,
-  .reader-topbar button:not(:disabled):not([aria-pressed="true"]):hover,
-  .reader-dock button:not(:disabled):hover,
-  #reader-outline button:hover {
-    box-shadow: inset 0 0 0 1px var(--lumina-filet-fort);
-  }
-}
-
-/* Barre supérieure translucide et navigation inférieure groupée. */
-.reader-topbar :is(button, input, select):focus-visible,
-.reader-dock :is(button, input):focus-visible,
-.reader-restore:focus-visible {
-  outline: 2px solid var(--lumina-accent);
-  outline-offset: 2px;
-}
-
-.reader-dock input[type="number"] {
-  appearance: textfield;
-  -moz-appearance: textfield;
-}
-
-.reader-dock input[type="number"]::-webkit-inner-spin-button,
-.reader-dock input[type="number"]::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
+/* Shared stacking order: folio 30 < outline 40 < tools 50 < edge tabs 60.
+   App's header/workspace wrappers must not isolate their fixed drawers in stacking contexts. */
+/* The gutters belong to the workspace, never to the transformed PDF or its gesture container. */
+.reader-with-gutters { padding-inline: 56px; }
+.reader-workspace { box-sizing: border-box; }
+.pdf-viewer-container { background-image: var(--lumina-grain); }
+.reader-topbar, .reader-dock-bar { background: var(--lumina-grain), var(--lumina-app-bg); }
 .reader-topbar-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  gap: 12px;
+  align-items: center;
+  padding: 4px 12px;
+  min-height: 52px;
+}
+.reader-document-position {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+}
+.reader-document-title {
+  min-width: 0;
+  font-family: var(--font-display);
+  font-variant-caps: small-caps;
+  font-weight: 600;
+  font-size: 16px;
+  text-align: center;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.reader-page-position {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  color: var(--lumina-text-secondary);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.reader-page-input {
+  appearance: textfield;
+  -moz-appearance: textfield;
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 2px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  border: 0;
+  border-bottom: 1px solid transparent;
+}
+.reader-page-input:hover, .reader-page-input:focus { border-bottom-color: currentColor; }
+.reader-page-input::-webkit-inner-spin-button,
+.reader-page-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.reader-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 2px;
+}
+.reader-icon:disabled { opacity: .35; }
+.reader-edge-tab {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  min-height: 140px;
+  z-index: 60;
+  writing-mode: vertical-rl;
+  color: var(--lumina-text-secondary);
+  font-size: 15px;
+  background: transparent;
+  border-radius: 2px;
+}
+.reader-edge-left { left: 6px; transform: translateY(-50%) rotate(180deg); }
+.reader-edge-right { right: 6px; }
+.reader-edge-tab[aria-expanded="true"] { color: var(--lumina-accent); font-weight: 700; }
+.reader-tools {
+  position: fixed;
+  inset: 0 0 0 auto;
+  width: min(360px, calc(100vw - 44px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  z-index: 50;
+  border-left: 1px solid var(--lumina-filet-fort);
+  padding-right: 56px;
+}
+.reader-tools, .reader-outline, .reader-ai {
+  background: var(--lumina-grain), var(--lumina-toolbar-bg);
+  color: var(--lumina-text-primary);
+}
+.reader-outline { width: min(360px, calc(100vw - 44px)); padding-left: 44px; }
+.reader-tools h2, .reader-outline > div:first-child {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--lumina-accent);
+}
+.reader-tools > section + section, .reader-tools h3:not(:first-child) {
+  border-top: 1px solid var(--lumina-filet);
+  padding-top: 16px;
+}
+.reader-tools h3 { font-size: 14.5px; font-weight: 600; margin-bottom: 8px; }
+.reader-tools :is(button, p, output) { font-size: 14px; }
+.reader-zoom-controls > button { padding-inline: 4px; }
+.reader-text-action { min-height: 44px; padding-inline: 6px; }
+.reader-tools button:not(.reader-icon), .library-view footer button, .recent-file-row button:first-child {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+}
+.reader-tools button[aria-pressed="true"], .library-view button[aria-pressed="true"] {
+  color: var(--lumina-accent);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  background-color: transparent !important;
+}
+.reader-tools [aria-label="Thème de couleur"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.reader-tools [aria-label="Autres outils"] { display: flex; flex-direction: column; align-items: stretch; }
+.react-pdf__Outline a {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  border-radius: 2px;
+  white-space: normal;
 }
 
-@media (max-width: 639px) {
-  .reader-topbar-layout {
-    display: flex;
-    justify-content: space-between;
-  }
+/* A single compact row; the thin progress track retains its full 44 px target. */
+.reader-dock {
+  display: grid;
+  position: relative;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  gap: 12px;
+  align-items: center;
+  padding: 0 12px 4px;
+  width: 100%;
 }
-
+.reader-dock > button { background: transparent; border: 0; }
+.dock-progress { min-width: 0; }
 .dock-progress-input {
   appearance: none;
   -webkit-appearance: none;
   width: 100%;
-  min-width: 44px;
   height: 44px;
+  display: block;
   margin: 0;
   background: transparent;
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: 0;
   touch-action: pan-y;
 }
-
 .dock-progress-input::-webkit-slider-runnable-track {
-  height: 4px;
-  border-radius: 999px;
+  height: 1px;
   background: linear-gradient(to right, var(--lumina-accent) var(--reader-progress), var(--lumina-filet-fort) var(--reader-progress));
 }
-
-.dock-progress-input::-moz-range-track {
-  height: 4px;
-  border-radius: 999px;
-  background: linear-gradient(to right, var(--lumina-accent) var(--reader-progress), var(--lumina-filet-fort) var(--reader-progress));
-}
-
+.dock-progress-input::-moz-range-track { height: 1px; background: var(--lumina-filet-fort); }
+.dock-progress-input::-moz-range-progress { height: 2px; background: var(--lumina-accent); }
 .dock-progress-input::-webkit-slider-thumb {
   appearance: none;
   -webkit-appearance: none;
-  width: 12px;
+  width: 2px;
   height: 12px;
-  margin-top: -4px;
-  border: 0;
-  border-radius: 50%;
+  margin-top: -5px;
   background: var(--lumina-accent);
-}
-
-.dock-progress-input::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
   border: 0;
-  border-radius: 50%;
-  background: var(--lumina-accent);
+  border-radius: 0;
 }
+.dock-progress-input::-moz-range-thumb { width: 2px; height: 12px; background: var(--lumina-accent); border: 0; border-radius: 0; }
 
-button:focus-visible,
-[role="button"]:focus-visible {
-  outline: 2px solid var(--lumina-accent);
-  outline-offset: 2px;
+.library-view, .library-view header { background-image: var(--lumina-grain); }
+.library-view header > div { max-width: none; }
+.library-view header > div > div:first-child { color: var(--lumina-accent); }
+.library-view header > div > div:first-child > span { font-size: 22px; }
+.library-view main, .library-view footer { max-width: 980px; }
+.library-title { font: 600 36px/1.2 var(--font-display); color: var(--lumina-accent); }
+.resume-file-name { font: 600 26px/1.25 var(--font-display); }
+.recent-file-name { font-family: var(--font-display); font-size: 18px; }
+.library-resume { padding: 0; background: none; border: 0; }
+.library-resume > div:first-child { width: 96px; height: 136px; }
+.library-view section[aria-label="Lectures récentes"] { border-top: 1px solid var(--lumina-filet); padding-top: 14px; }
+.library-view section[aria-label="Lectures récentes"] h2 { font-size: 14.5px; color: var(--lumina-text-primary); }
+.recent-file-row { border-bottom: 1px solid var(--lumina-filet); }
+.library-view footer { border-top: 1px solid var(--lumina-filet); padding-top: 16px; font-size: 14px; }
+.library-view [aria-label="Ambiances de lecture"] { border: 1px solid var(--lumina-filet-fort); background-image: var(--lumina-grain); }
+.lumina-app > [role="alert"] { background-image: var(--lumina-grain); }
+.import-overlay-label { background: var(--lumina-grain), var(--lumina-toolbar-bg); color: var(--lumina-accent); }
+
+/* Surfaces and controls in the assigned chrome only, never the PDF camera/annotations. */
+:is(.reader-topbar, .reader-dock, .reader-outline, .library-view, .reader-ai),
+:is(.reader-topbar, .reader-dock, .reader-outline, .library-view, .reader-ai) :is(button, input, select, textarea, [role="button"]) {
+  border-radius: 2px;
+  box-shadow: none;
+  backdrop-filter: none;
 }
-
-.reader-restore {
-  width: 52px;
-  min-width: 44px;
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--lumina-toolbar-bg);
-  opacity: 0;
-  transition: opacity 180ms ease;
+.reader-ai :is(div, textarea, button) { box-shadow: none; border-radius: 2px; }
+.reader-ai textarea, .reader-ai select { background-color: var(--lumina-hover-bg); color: var(--lumina-text-primary); }
+:is(button, input, select, textarea, [role="button"]):focus-visible { outline: 2px solid var(--lumina-accent); outline-offset: 2px; }
+@media (hover: hover) {
+  :is(.reader-topbar, .reader-outline, .library-view) button:not(:disabled):not(.library-primary):hover { background-color: var(--lumina-hover-bg); }
+  .library-view .library-primary:hover { background-color: color-mix(in srgb, var(--lumina-accent) 84%, var(--lumina-text-primary)) !important; }
 }
-
-.reader-restore:focus,
-.reader-restore:focus-visible {
-  opacity: 1;
-}
-
-.pdf-viewer-container {
-  scroll-behavior: auto;
-  overflow-anchor: none;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .reader-restore:hover {
-    opacity: 1;
-  }
+/* Immersion has no visible restore tab; its existing keyboard affordance is retained. */
+.reader-restore { width: 52px; height: 44px; opacity: 0; }
+.reader-restore:focus-visible { opacity: 1; }
+@media (max-width: 760px) {
+  .reader-with-gutters { padding-inline: 44px; }
+  .reader-edge-left { left: 0; }
+  .reader-edge-right { right: 0; }
+  .library-title { font-size: 30px; }
+  .resume-file-name { font-size: 22px; }
+  .library-resume > div:first-child { width: 56px; height: 80px; }
 }

@@ -116,9 +116,9 @@ const AiPanel: React.FC<AiPanelProps> = ({ isOpen, onClose, currentPageText, pdf
   return (
     <div
       className={`
-        flex flex-col min-w-0 transition-all duration-500 cubic-bezier(0.16, 1, 0.3, 1) h-full
+        reader-ai flex flex-col min-w-0 transition-all duration-200 cubic-bezier(0.16, 1, 0.3, 1) h-full
         ${isOpen
-          ? 'fixed inset-0 z-50 md:relative md:inset-auto md:z-auto md:w-[380px] lg:w-[420px] opacity-100 translate-x-0 border-l glass-premium'
+          ? 'fixed inset-0 z-50 md:relative md:inset-auto md:z-auto md:w-[380px] lg:w-[420px] opacity-100 translate-x-0 border-l'
           : 'w-0 opacity-0 translate-x-10 overflow-hidden border-0'
         }
         ${colors}
@@ -142,7 +142,7 @@ const AiPanel: React.FC<AiPanelProps> = ({ isOpen, onClose, currentPageText, pdf
 
           <div className="flex flex-col gap-2">
             {/* Persona Selector */}
-            <div className={`relative rounded-lg ${inputBg}`}>
+            <div className={`relative rounded-[2px] ${inputBg}`}>
               <select
                 value={currentPersona.id}
                 onChange={handlePersonaChange}
@@ -158,7 +158,7 @@ const AiPanel: React.FC<AiPanelProps> = ({ isOpen, onClose, currentPageText, pdf
             </div>
 
             {/* Model Selector Menu */}
-            <div className={`relative rounded-lg ${inputBg}`}>
+            <div className={`relative rounded-[2px] ${inputBg}`}>
               <select
                 value={model}
                 onChange={(e) => setModel(e.target.value as AiModel)}
@@ -182,16 +182,16 @@ const AiPanel: React.FC<AiPanelProps> = ({ isOpen, onClose, currentPageText, pdf
           {messages.map((msg, idx) => (
             <div key={idx} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''} fly-enter-active`}>
               <div className={`
-                w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0
+                w-8 h-8 rounded-[2px] flex items-center justify-center flex-shrink-0
                 ${msg.role === 'model' ? 'bg-[var(--lumina-accent-muted)] text-[var(--lumina-accent)]' : (isLight ? 'bg-gray-200 text-gray-600' : 'bg-gray-700 text-gray-300')}
               `}>
                 {msg.role === 'model' ? <Bot size={16} /> : <User size={16} />}
               </div>
               <div className={`
-                max-w-[85%] rounded-2xl px-4 py-2 text-sm leading-relaxed whitespace-pre-line shadow-sm
+                max-w-[85%] rounded-[2px] px-4 py-2 text-sm leading-relaxed whitespace-pre-line
                 ${msg.role === 'user'
-                  ? 'bg-[var(--lumina-accent)] text-white rounded-tr-none'
-                  : `${isLight ? 'bg-black/5 text-gray-800' : 'bg-white/10 text-gray-200'} rounded-tl-none`
+                  ? 'bg-[var(--lumina-accent)] text-white'
+                  : `${isLight ? 'bg-black/5 text-gray-800' : 'bg-white/10 text-gray-200'}`
                 }
               `}>
                 {msg.text}
@@ -200,10 +200,10 @@ const AiPanel: React.FC<AiPanelProps> = ({ isOpen, onClose, currentPageText, pdf
           ))}
           {loading && (
             <div className="flex gap-3 fly-enter-active">
-              <div className="w-8 h-8 rounded-full bg-[var(--lumina-accent-muted)] text-[var(--lumina-accent)] flex items-center justify-center animate-pulse">
+              <div className="w-8 h-8 rounded-[2px] bg-[var(--lumina-accent-muted)] text-[var(--lumina-accent)] flex items-center justify-center animate-pulse">
                 <Sparkles size={16} />
               </div>
-              <div className={`${isLight ? 'bg-black/5' : 'bg-white/10'} rounded-2xl rounded-tl-none px-4 py-3 flex items-center gap-2`}>
+              <div className={`${isLight ? 'bg-black/5' : 'bg-white/10'} rounded-[2px] px-4 py-3 flex items-center gap-2`}>
                 <Loader2 size={14} className="animate-spin" />
                 <span className="text-xs opacity-70">Réflexion ({currentPersona.name})...</span>
               </div>
@@ -226,8 +226,8 @@ const AiPanel: React.FC<AiPanelProps> = ({ isOpen, onClose, currentPageText, pdf
               }}
               placeholder="Posez une question..."
               className={`
-                w-full pl-4 pr-12 py-3 rounded-xl resize-none text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all font-light
-                ${!isLight ? 'bg-black/20 text-white placeholder-gray-500 focus:bg-black/30' : 'bg-gray-100 text-gray-800 placeholder-gray-400 focus:bg-white focus:shadow-md'}
+                w-full pl-4 pr-12 py-3 rounded-[2px] resize-none text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all font-light
+                ${!isLight ? 'bg-black/20 text-white placeholder-gray-500 focus:bg-black/30' : 'bg-gray-100 text-gray-800 placeholder-gray-400 focus:bg-white'}
               `}
               rows={1}
               style={{ minHeight: '44px', maxHeight: '120px' }}
@@ -236,13 +236,12 @@ const AiPanel: React.FC<AiPanelProps> = ({ isOpen, onClose, currentPageText, pdf
               onClick={handleSend}
               disabled={!input.trim() || loading}
               className={`
-                absolute right-2 p-2 rounded-lg transition-all duration-300
+                absolute right-2 p-2 rounded-[2px] transition-all duration-300
                 ${!input.trim() || loading
                   ? 'text-gray-400 cursor-not-allowed'
-                  : 'bg-[var(--lumina-accent)] text-white hover:bg-[var(--lumina-accent-hover)] shadow-md transform hover:scale-105'
+                  : 'bg-[var(--lumina-accent)] text-white hover:bg-[var(--lumina-accent-hover)] transform hover:scale-105'
                 }
               `}
-              style={!input.trim() || loading ? {} : { boxShadow: '0 4px 6px -1px var(--lumina-shadow)' }}
             >
               <Send size={16} />
             </button>

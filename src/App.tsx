@@ -619,7 +619,7 @@ function App() {
     return (
         <div
             className={`
-        flex flex-col h-[100dvh] w-full overflow-hidden transition-colors duration-200
+        lumina-app flex flex-col h-[100dvh] w-full overflow-hidden transition-colors duration-200
         ${isDarkVariant(themeVariant) ? 'dark' : ''}
         bg-[var(--lumina-bg)]
       `}
@@ -633,7 +633,7 @@ function App() {
 
             {/* 1. Header / Toolbar */}
             {file && (
-                <div className="flex-none z-20 relative">
+                <div className="flex-none relative">
                     {/* Floating button to restore toolbar when hidden */}
                     {!isToolbarVisible && (
                         <button
@@ -707,7 +707,7 @@ function App() {
             )}
 
             {/* 2. Main Workspace */}
-            <div className="flex-1 relative overflow-hidden z-10">
+            <div className="flex-1 relative overflow-hidden">
                 {!file ? (
                     <RecentFiles
                         onFileSelect={handleOpenFile}
@@ -720,7 +720,7 @@ function App() {
                     />
                 ) : (
                     <div className="w-full h-full relative flex flex-row">
-                        <div className="flex-1 relative h-full w-full overflow-hidden">
+                        <div className={`reader-workspace flex-1 min-w-0 relative h-full overflow-hidden ${isToolbarVisible ? 'reader-with-gutters' : ''}`}>
                             {isOpening ? <p className="p-10" role="status">Ouverture du document...</p> : <PdfViewer
                                 key={documentSession}
                                 restorePage={restorePage}
@@ -781,7 +781,7 @@ function App() {
         `}
             >
                 <div className="w-full h-full bg-blue-500/20 border-4 border-blue-500 border-dashed flex items-center justify-center">
-                    <p className="text-3xl font-bold text-blue-600 bg-white/90 p-4 rounded-xl shadow-xl">
+                    <p className="text-3xl font-bold p-4 import-overlay-label">
                         Déposez votre PDF ici
                     </p>
                 </div>

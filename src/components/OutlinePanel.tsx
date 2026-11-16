@@ -18,7 +18,7 @@ const OutlinePanel: React.FC<OutlinePanelProps> = ({ isOpen, onClose, onItemClic
   useEffect(() => {
     if (!isOpen) return;
     const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !event.defaultPrevented && !document.getElementById('reader-tools')) {
+      if (event.key === 'Escape' && !event.defaultPrevented && !document.querySelector('#reader-tools:not([hidden])')) {
         event.preventDefault();
         close();
       }
@@ -32,25 +32,24 @@ const OutlinePanel: React.FC<OutlinePanelProps> = ({ isOpen, onClose, onItemClic
       id="reader-outline"
       hidden={!isOpen}
       aria-label="Table des matières"
-      className={`fixed top-14 left-3 z-40 w-80 max-w-[calc(100vw-24px)] max-h-[calc(100vh-128px)] flex flex-col rounded-lg transition-all duration-200 ease-out transform ${isOpen ? 'translate-x-0 opacity-100' : '-translate-x-6 opacity-0 pointer-events-none'}`}
+      className="reader-outline fixed inset-y-0 left-0 z-40 flex flex-col"
       style={{
-        backgroundColor: 'var(--lumina-outline-bg)',
+        backgroundColor: 'var(--lumina-toolbar-bg)',
         color: 'var(--lumina-text-primary)',
-        boxShadow: 'var(--lumina-shadow)',
-        border: '1px solid var(--lumina-filet)',
+        borderRight: '1px solid var(--lumina-filet-fort)',
       }}
     >
       {/* En-tête éditorial sans bordure dure */}
       <div
         className="flex items-center justify-between px-4 py-3"
       >
-        <div className="flex items-center gap-2 font-medium text-sm" style={{ fontFamily: 'var(--font-display)' }}>
+        <div className="flex items-center gap-2 font-semibold text-xl" style={{ fontFamily: 'var(--font-display)' }}>
           <span>Table des matières</span>
         </div>
         <button
           type="button"
           onClick={close}
-          className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] -mr-2 rounded-md transition-colors"
+          className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] -mr-2 rounded-[2px] transition-colors"
           style={{ color: 'var(--lumina-text-secondary)' }}
           aria-label="Fermer la table des matières"
         >
