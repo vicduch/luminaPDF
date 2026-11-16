@@ -2,8 +2,24 @@
   "version": 1,
   "projet": "LuminaPDF",
   "cle": "LUM",
-  "prochain_id": 16,
+  "prochain_id": 17,
   "taches": [
+    {
+      "id": "LUM-16",
+      "statut": "a_valider",
+      "priorite": "haute",
+      "titre": "Rétablir l'identité OneLearn : bibliothèque « bandeau manuel » et lecteur « liseuse »",
+      "jalon": "ROADMAP.md#lecture-pwa-fiable",
+      "contrat": "docs/features/LUM-16-liseuse-onelearn.md — bibliothèque B et lecteur C validés sur maquette hors dépôt ; choix de mode déplacé dans Outils (option 1 acceptée). Parcours protégé.",
+      "reste": [
+        "Essai utilisateur sur Xiaomi (PWA) puis acceptation.",
+        "Accord distinct pour les commits locaux, puis pour l'envoi au dépôt ; aucun déploiement autorisé."
+      ],
+      "relais": {
+        "date": "2026-11-16",
+        "texte": "Bibliothèque B, lecteur C, mode dans Outils ; delta 16/11 (numéro de page dans l'en-tête, filet et flèches discrètes en bas) accepté visuellement sur PC. Tests d'abord par auteurs fresh Sonnet high, production par workers fresh Sol high, corrections parent loadRecentFiles et bouton Notes. Revue 1 Sol xhigh : 2 majeurs résolus (Notes lisibles, LISEUSE-F rouge 1,00:1 avant ; molette immédiate rétablie). Pincement : aucun défaut moteur reproduit (pinch-anchor 17/17, écart ≤ 0,5 px) ; oracle reader inatteignable corrigé selon LUM-13 G2 ; PdfViewer inchangé. Revue 2 ciblée Sol xhigh : seul mineur documentaire, corrigé. Final une passe : liseuse 21/21, pinch-anchor 17/17, reader 8/8, regressions 9/9, storage 26/26, ux-recovery 25/25, gestures 75/75 ; tsc/build OK. UX1 intermittent aussi sur base. Pas d'essai Xiaomi ni PWA hors ligne. Aucun commit."
+      }
+    },
     {
       "id": "LUM-13",
       "statut": "a_valider",
