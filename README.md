@@ -64,7 +64,7 @@ Les PDF récents et la position de lecture sont stockés localement dans le navi
 
 ## Documentation de référence
 
-- [CLAUDE.md](CLAUDE.md) : consignes pour intervenir sur ce dépôt.
+- [AGENTS.md](AGENTS.md) : consignes pour intervenir sur ce dépôt (lues par Pi quel que soit le modèle).
 - [ARCHITECTURE.md](ARCHITECTURE.md) : fonctionnement observé et limites.
 - [ROADMAP.md](ROADMAP.md) : cap, critères de réussite et décisions.
 - [backlog.json](backlog.json) : seule file active des travaux et de leur avancement.

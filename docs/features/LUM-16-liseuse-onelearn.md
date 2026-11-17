@@ -41,7 +41,7 @@ LuminaPDF retrouve le langage « manuel » de OneLearn : papier légèrement gra
 
 ## Contrats à préserver
 
-Invariants de `CLAUDE.md` (caméra, `#pdf-spacing-wrapper`, `#pdf-workspace`, qualité différée, virtualisation, gestes LUM-13, `scrollToPage`/`fitPage`, focus, raccourcis, panneaux masqués sans démontage, `ThemeFilterDefs`), sauf la place du choix de mode ci-dessus. Noms accessibles existants conservés. Aucun changement de stockage, services distants, Electron, dépendances, palettes ou gestes.
+Invariants de `AGENTS.md` (caméra, `#pdf-spacing-wrapper`, `#pdf-workspace`, qualité différée, virtualisation, gestes LUM-13, `scrollToPage`/`fitPage`, focus, raccourcis, panneaux masqués sans démontage, `ThemeFilterDefs`), sauf la place du choix de mode ci-dessus. Noms accessibles existants conservés. Aucun changement de stockage, services distants, Electron, dépendances, palettes ou gestes.
 
 ## Inclus / exclus
 

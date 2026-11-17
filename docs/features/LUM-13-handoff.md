@@ -12,7 +12,7 @@ Rédigé le 14 novembre 2026 au soir par l'agent principal de la session de cadr
   - **aucun commit ni push sans son accord explicite** ;
   - pas de dépendance, de refactor ni de reformatage sans rapport avec la demande ;
   - **Microsoft Edge** pour tout affichage.
-- Instructions du projet : `CLAUDE.md` (invariants de géométrie, zoom, virtualisation, thèmes ; état des services ; Electron non sécurisé). Lire aussi `README.md`, `ARCHITECTURE.md`, `ROADMAP.md`, `backlog.json`.
+- Instructions du projet : `AGENTS.md` (invariants de géométrie, zoom, virtualisation, thèmes ; état des services ; Electron non sécurisé). Lire aussi `README.md`, `ARCHITECTURE.md`, `ROADMAP.md`, `backlog.json`.
 - Workflow obligatoire : `vd-pi-x-orchestrate-feature` (`/home/vduch/vd-pi-skills/vd-pi-x-orchestrate-feature/SKILL.md`), avec son socle `references/commun.md`, `references/agents.md`, `references/ux.md`, et les skills internes `vd-pi-3-shape-feature` et `vd-pi-4-implement-feature`.
   - Parcours retenu : **protégé** (gestes et géométrie partagés par tout le lecteur, changement visuel transversal).
   - **Auteurs séparés** : l'agent qui code la production n'écrit ni ne modifie aucun test ; un auteur de tests indépendant écrit les tests en premier.
@@ -32,7 +32,7 @@ Rédigé le 14 novembre 2026 au soir par l'agent principal de la session de cadr
 
 | N° | Décision |
 |---|---|
-| 1B | Page agrandie arrivée au bord : continuer à tirer fait résister puis tourner la page. Remplace la règle LUM-2 et l'invariant `CLAUDE.md` « un pan zoomé ne pagine pas ». |
+| 1B | Page agrandie arrivée au bord : continuer à tirer fait résister puis tourner la page. Remplace la règle LUM-2 et l'invariant `AGENTS.md` « un pan zoomé ne pagine pas ». |
 | 2B | Toucher le quart gauche ou droit tourne la page ; toucher le centre masque ou affiche les barres. Liens et notes restent prioritaires. Au doigt ou au stylet uniquement. |
 | 3A | En Page par page sur PC, la molette tourne la page ; agrandie, elle défile jusqu'au bord, puis passe à la page voisine. |
 | 4B | Garder les **neuf thèmes** et leurs deux variantes, réétudiés pour la qualité, la beauté et la lisibilité. Après la maquette : « Les thèmes sont OK ». |
@@ -153,7 +153,7 @@ Mesures Edge headless isolé, sur fixtures. Ce sont des simulations CDP, pas un 
     | eInk | niveaux de gris | niveaux de gris |
 
   - Variantes renommées **« Jour / Nuit »**.
-  - De nuit, le filtre de la maquette applique `hue-rotate(180deg)` avant la matrice papier/encre : les figures gardent leurs teintes (le bleu reste bleu). C'est compatible avec `CLAUDE.md` : pas d'`invert()`, toujours `feColorMatrix`. Effet à vérifier sur de vraies images PDF.
+  - De nuit, le filtre de la maquette applique `hue-rotate(180deg)` avant la matrice papier/encre : les figures gardent leurs teintes (le bleu reste bleu). C'est compatible avec `AGENTS.md` : pas d'`invert()`, toujours `feColorMatrix`. Effet à vérifier sur de vraies images PDF.
 - `lum13/snapshot-avant-cadrage.json` et `lum13/snapshot-avant-tests.json` — empreintes `gate_check.py`.
 - `lum13/vite-3016.log` — journal du serveur de vérification. `lum13/auteur-tests-run-interrompu.log` et `lum13/sondes-auteur-tests/` — sortie et sondes de l'auteur de tests.
 - `etude-rendu/` — copie de l'étude moteur de l'autre session (section 9).
@@ -205,7 +205,7 @@ Gate : `gate_check.py verify --role vd-pi-test-writer --phase post-run` donne **
   - cibles de 44 px, absence de débordement à 360 px.
 
   Exceptions déjà décidées : G2 et G5. La languette de réouverture est à rediscuter.
-- **Invariants `CLAUDE.md`** :
+- **Invariants `AGENTS.md`** :
   - `#pdf-camera` en `transform: scale`, origine `0 0` ; espacements hors caméra ;
   - dimensions monde depuis `#pdf-workspace`, jamais `container.scrollWidth` ;
   - `scrollToPage` et `fitPage` comme passages communs ;
@@ -214,7 +214,7 @@ Gate : `gate_check.py verify --role vd-pi-test-writer --phase post-run` donne **
   - `ThemeFilterDefs` en `feColorMatrix`, pas d'`invert()` ;
   - dépendances primitives dans les effets.
 
-  `CLAUDE.md` et `ARCHITECTURE.md` sont à aligner **après acceptation** de G5.
+  `AGENTS.md` et `ARCHITECTURE.md` sont à aligner **après acceptation** de G5.
 - **Exclus de la passe** :
   - stockage et identifiants (sauf décision sur le nombre de pages, section 4) ;
   - annotations persistantes ;

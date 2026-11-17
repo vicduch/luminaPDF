@@ -77,12 +77,12 @@ Vocabulaire : *zone de lecture* = le conteneur défilant du lecteur ; *document*
 
 - LUM-2 « page agrandie : un doigt ne tourne jamais une page, même au bord » → remplacée par G5 (décision 1B).
 - LUM-2 « point d'ancrage du zoom conservé » → limitée par G2 aux axes où le document dépasse la zone (conséquence directe de G1, sans vide autour du document). Les tests correspondants sont adaptés par l'auteur de tests indépendant ; aucune autre assertion n'est retirée.
-- `CLAUDE.md` et les invariants de lecture d'`ARCHITECTURE.md` sont alignés sur G1/G2/G5 après acceptation technique locale ; l'acceptation utilisateur et l'essai Xiaomi restent attendus.
+- `AGENTS.md` et les invariants de lecture d'`ARCHITECTURE.md` sont alignés sur G1/G2/G5 après acceptation technique locale ; l'acceptation utilisateur et l'essai Xiaomi restent attendus.
 - LUM-17 (décisions utilisateur du 17/11/2026) : G6 « une page ajustée peut se réajuster à l'espace libéré » est remplacé par « masquer/afficher les barres ne déplace jamais le PDF » ; G1 vertical : la marge aux extrémités vaut réserve des barres + 8 px (au plus réserve + 24 px), l'horizontal est inchangé. Voir `docs/features/LUM-17-barres-superposees.md`.
 
 ### Périmètre
 
-Production : `src/hooks/useReaderGestures.ts`, `src/components/PdfViewer.tsx`, `src/App.tsx` (liaison barre/toucher central, molette si nécessaire), `src/index.css` et `src/types.ts` seulement si indispensable. Noms de code en anglais (convention du projet), commentaires en français. Invariants `CLAUDE.md` maintenus : espacements hors caméra, `transform: scale` d'origine `0 0` sur `#pdf-camera`, dimensions monde depuis `#pdf-workspace` et jamais `container.scrollWidth`, `scrollToPage`/`fitPage` comme passages communs, virtualisation `IntersectionObserver` 2000 px, dépendances primitives dans les effets.
+Production : `src/hooks/useReaderGestures.ts`, `src/components/PdfViewer.tsx`, `src/App.tsx` (liaison barre/toucher central, molette si nécessaire), `src/index.css` et `src/types.ts` seulement si indispensable. Noms de code en anglais (convention du projet), commentaires en français. Invariants `AGENTS.md` maintenus : espacements hors caméra, `transform: scale` d'origine `0 0` sur `#pdf-camera`, dimensions monde depuis `#pdf-workspace` et jamais `container.scrollWidth`, `scrollToPage`/`fitPage` comme passages communs, virtualisation `IntersectionObserver` 2000 px, dépendances primitives dans les effets.
 
 Exclus : apparence (lot 2), bibliothèque (lot 3), stockage et identifiants, annotations persistantes, IA/cloud/Drive, Electron, dépendances, double-toucher pour zoomer, affichage de la page voisine pendant le glissement, déploiement. Ne pas normaliser les fins de ligne des fichiers existants ni toucher aux changements préexistants (archives, `dev-dist/sw.js`, tests non suivis `tests/storage-extra.test.mjs` et `tests/fixtures/storage-damaged-page.pdf`).
 
