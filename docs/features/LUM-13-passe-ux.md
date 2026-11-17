@@ -78,6 +78,7 @@ Vocabulaire : *zone de lecture* = le conteneur défilant du lecteur ; *document*
 - LUM-2 « page agrandie : un doigt ne tourne jamais une page, même au bord » → remplacée par G5 (décision 1B).
 - LUM-2 « point d'ancrage du zoom conservé » → limitée par G2 aux axes où le document dépasse la zone (conséquence directe de G1, sans vide autour du document). Les tests correspondants sont adaptés par l'auteur de tests indépendant ; aucune autre assertion n'est retirée.
 - `CLAUDE.md` et les invariants de lecture d'`ARCHITECTURE.md` sont alignés sur G1/G2/G5 après acceptation technique locale ; l'acceptation utilisateur et l'essai Xiaomi restent attendus.
+- LUM-17 (décisions utilisateur du 17/11/2026) : G6 « une page ajustée peut se réajuster à l'espace libéré » est remplacé par « masquer/afficher les barres ne déplace jamais le PDF » ; G1 vertical : la marge aux extrémités vaut réserve des barres + 8 px (au plus réserve + 24 px), l'horizontal est inchangé. Voir `docs/features/LUM-17-barres-superposees.md`.
 
 ### Périmètre
 

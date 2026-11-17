@@ -2,8 +2,23 @@
   "version": 1,
   "projet": "LuminaPDF",
   "cle": "LUM",
-  "prochain_id": 17,
+  "prochain_id": 18,
   "taches": [
+    {
+      "id": "LUM-17",
+      "statut": "a_valider",
+      "priorite": "haute",
+      "titre": "Garder le PDF immobile quand les barres apparaissent ou disparaissent",
+      "jalon": "ROADMAP.md#lecture-pwa-fiable",
+      "contrat": "docs/features/LUM-17-barres-superposees.md — option A choisie par l'utilisateur : barres superposées, page ajustée à sa taille actuelle ; marge réservée en haut et en bas (B8). Parcours assisté UX, tests d'abord, revue indépendante.",
+      "reste": [
+        "Essai utilisateur sur Xiaomi (PWA) : toucher central, page ajustée et zoomée, début et fin du document en Continu."
+      ],
+      "relais": {
+        "date": "2026-11-17",
+        "texte": "Tests d'abord par auteur fresh Sonnet high (barres 40 cas, rouges attendus avant) ; production par workers fresh Sol high (2e session fresh après blocage du garde-fou à la reprise, sans écriture). Revue 1 Sol xhigh : 3 majeurs (extrémités sous les barres, IA et alerte recouvertes) + 2 mineurs, tous corrigés ; B8 décidé par l'utilisateur. Oracles G2, LISEUSE B/G1 et bornes verticales adaptés par l'auteur de tests seul. État final : barres 40/40, gestures 75/75, liseuse, pinch-anchor, reader, regressions, ux-recovery, storage verts ; tsc/build OK ; sonde Edge seuil 760 px IA ouverte OK. Revue 2 ciblée Sol xhigh : acceptée, zéro finding. Pas d'essai Xiaomi ni PWA hors ligne. Trois commits (fix, test, docs) envoyés sur master (vicduch/luminaPDF) le 17/11 avec accord utilisateur."
+      }
+    },
     {
       "id": "LUM-16",
       "statut": "a_valider",
