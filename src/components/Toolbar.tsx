@@ -273,7 +273,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
           </section>
 
           {/* Affichage : Zoom + Jour/Nuit + 9 thèmes */}
-          <section aria-label="Affichage" className="space-y-3">
+          <section aria-label="Affichage">
             <h3>Zoom</h3>
             <div className="reader-zoom-controls flex items-center justify-between gap-2">
               <button
@@ -315,7 +315,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
             <div
               role="group"
               aria-label="Variante de luminosité"
-              className="grid grid-cols-2 gap-1.5 p-1 rounded-[2px]"
+              className="grid grid-cols-2 gap-1.5 rounded-[2px]"
               style={{ backgroundColor: 'transparent' }}
             >
               <button
@@ -355,7 +355,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
             </div>
 
             <h3>Ambiance</h3>
-            <div role="group" aria-label="Thème de couleur" className="grid grid-cols-3 gap-1.5">
+            <div role="group" aria-label="Thème de couleur" className="grid grid-cols-2 gap-1.5">
               {THEME_LIST.map((item) => {
                 const isSelected = theme === item.id;
                 const swatch = themeVariant === 'dark' ? item.nuit : item.jour;
@@ -372,10 +372,11 @@ const Toolbar: React.FC<ToolbarProps> = ({
                         ? {
                             backgroundColor: 'transparent',
                             color: 'var(--lumina-accent)',
-                            outline: '1.5px solid var(--lumina-accent)',
+                            border: '1.5px solid var(--lumina-accent)',
                           }
                         : {
                             color: 'var(--lumina-text-primary)',
+                            border: '1.5px solid transparent',
                           }
                     }
                   >
@@ -391,7 +392,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                     >
                       Aa
                     </span>
-                    <span className="truncate">{item.name}</span>
+                    <span>{item.name}</span>
                   </button>
                 );
               })}
@@ -399,21 +400,14 @@ const Toolbar: React.FC<ToolbarProps> = ({
           </section>
 
           {/* Notes */}
-          <section
-            aria-label="Notes"
-            className="space-y-2.5 pt-3"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-sm font-semibold" style={{ color: 'var(--lumina-text-secondary)' }}>
-                Notes
-              </h3>
-            </div>
+          <section aria-label="Notes">
+            <h3>Notes</h3>
 
             <button
               type="button"
               onClick={toggleAnnotationMode}
               aria-pressed={isAnnotationMode}
-              className="w-full inline-flex items-center justify-center gap-2 min-h-[44px] px-3 rounded-[2px] text-xs font-semibold transition-colors"
+              className="reader-text-action w-full inline-flex items-center justify-start gap-2 rounded-[2px] text-xs font-semibold transition-colors"
               style={
                 isAnnotationMode
                   ? { backgroundColor: 'transparent', color: 'var(--lumina-accent)' }
@@ -424,7 +418,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
               <span>{isAnnotationMode ? 'Terminer la pose de note' : 'Ajouter une note sur la page'}</span>
             </button>
 
-            <div role="group" aria-label="Couleur des notes" className="flex items-center justify-between gap-1">
+            <div role="group" aria-label="Couleur des notes" className="flex items-center justify-between gap-1 mt-2">
               {NOTE_COLORS.map((color) => {
                 const selected = annotationColor === color.value;
                 return (
@@ -435,17 +429,17 @@ const Toolbar: React.FC<ToolbarProps> = ({
                     aria-label={color.label}
                     aria-pressed={selected}
                     title={color.label}
-                    className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] rounded-[2px] transition-transform"
+                    className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] rounded-[2px] transition-colors"
                     style={{
-                      backgroundColor: selected ? 'var(--lumina-active-bg)' : 'transparent',
+                      border: selected ? '1.5px solid var(--lumina-accent)' : '1.5px solid transparent',
                     }}
                   >
                     <span
                       aria-hidden="true"
-                      className="w-5 h-5 rounded-[2px] border border-black/20"
+                      className="w-5 h-5 rounded-[2px]"
                       style={{
                         backgroundColor: color.value,
-                        transform: selected ? 'scale(1.18)' : 'scale(1)',
+                        border: '1px solid var(--lumina-filet-fort)',
                       }}
                     />
                   </button>
@@ -453,24 +447,21 @@ const Toolbar: React.FC<ToolbarProps> = ({
               })}
             </div>
 
-            <p className="text-[11px]" style={{ color: 'var(--lumina-text-secondary)' }}>
+            <p className="text-[11px] mt-2" style={{ color: 'var(--lumina-text-secondary)' }}>
               Vos notes sont conservées sur cet appareil. Gardez une copie de vos PDF ; les données de ce navigateur ne sont pas une sauvegarde indépendante.
             </p>
           </section>
 
           {/* Autres outils */}
-          <section
-            aria-label="Autres outils"
-            className="grid grid-cols-2 gap-2 pt-3"
-          >
-            <h3 className="col-span-2">Autres actions</h3>
+          <section aria-label="Autres outils">
+            <h3>Autres actions</h3>
             <button
               type="button"
               onClick={() => {
                 setToolsOpen(false);
                 fileInputRef.current?.click();
               }}
-              className="inline-flex items-center gap-2 min-h-[44px] px-3 rounded-[2px] text-xs font-medium transition-colors"
+              className="reader-text-action inline-flex items-center gap-2 rounded-[2px] text-xs font-medium transition-colors"
               style={{
                 color: 'var(--lumina-text-primary)',
               }}
@@ -486,7 +477,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                 setToolsOpen(false);
                 toolsButtonRef.current?.focus();
               }}
-              className="inline-flex items-center gap-2 min-h-[44px] px-3 rounded-[2px] text-xs font-medium transition-colors col-span-2"
+              className="reader-text-action inline-flex items-center gap-2 rounded-[2px] text-xs font-medium transition-colors"
               style={{
                 color: 'var(--lumina-text-primary)',
               }}
@@ -499,7 +490,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
               type="button"
               onClick={toggleFullscreen}
               aria-pressed={isFullscreen}
-              className="inline-flex items-center gap-2 min-h-[44px] px-3 rounded-[2px] text-xs font-medium transition-colors"
+              className="reader-text-action inline-flex items-center gap-2 rounded-[2px] text-xs font-medium transition-colors"
               style={{
                 color: 'var(--lumina-text-primary)',
               }}
@@ -514,7 +505,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                 setToolsOpen(false);
                 toggleVisibility();
               }}
-              className="inline-flex items-center gap-2 min-h-[44px] px-3 rounded-[2px] text-xs font-medium transition-colors"
+              className="reader-text-action inline-flex items-center gap-2 rounded-[2px] text-xs font-medium transition-colors"
               style={{
                 color: 'var(--lumina-text-primary)',
               }}
@@ -528,11 +519,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
           {recentFiles.length > 0 && onOpenRecentFile && (
             <section
               aria-label="Lectures récentes"
-              className="space-y-1.5 pt-3"
               >
-              <div className="text-sm font-semibold" style={{ color: 'var(--lumina-text-secondary)' }}>
-                <span>Lectures récentes</span>
-              </div>
+              <h3>Lectures récentes</h3>
               <div className="max-h-36 overflow-y-auto space-y-1">
                 {recentFiles.slice(0, 8).map((recent) => (
                   <button

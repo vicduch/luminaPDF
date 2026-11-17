@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AppTheme, AiPanelProps, AiModel, ChatMessage, Persona } from '../types';
+import { AiPanelProps, AiModel, ChatMessage, Persona } from '../types';
 import { X, Sparkles, Loader2, Send, Bot, User, ChevronDown } from './Icons';
 import { createChatSession, sendMessageToChat } from '../services/geminiService';
 import { Chat } from "@google/genai";
@@ -37,7 +37,7 @@ const PERSONAS: Persona[] = [
   }
 ];
 
-const AiPanel: React.FC<AiPanelProps> = ({ isOpen, onClose, currentPageText, pdfMetadata, theme }) => {
+const AiPanel: React.FC<AiPanelProps> = ({ isOpen, onClose, currentPageText, pdfMetadata }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -109,9 +109,7 @@ const AiPanel: React.FC<AiPanelProps> = ({ isOpen, onClose, currentPageText, pdf
     setLoading(false);
   };
 
-  const colors = 'bg-[var(--lumina-bg-secondary)] border-[var(--lumina-border)] text-[var(--lumina-text)]';
-  const isLight = theme === AppTheme.LIGHT || theme === AppTheme.SEPIA || theme === AppTheme.SOLARIZED;
-  const inputBg = isLight ? 'bg-black/5' : 'bg-white/10';
+  const colors = 'bg-[var(--lumina-toolbar-bg)] border-[var(--lumina-filet)] text-[var(--lumina-text-primary)]';
 
   return (
     <div
@@ -126,72 +124,74 @@ const AiPanel: React.FC<AiPanelProps> = ({ isOpen, onClose, currentPageText, pdf
     >
       <div className="flex flex-col h-full min-w-0">
         {/* Header with Configuration */}
-        <div className={`p-4 border-b flex flex-col gap-3 flex-shrink-0 ${isLight ? 'border-gray-200' : 'border-gray-700'}`}>
+        <div className="p-4 border-b border-[var(--lumina-filet)] flex flex-col gap-3 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
                 <Sparkles className="text-[var(--lumina-accent)]" size={18} />
-                <span className="font-bold tracking-tight text-lg">Assistant IA</span>
+                <h2>Assistant IA</h2>
               </div>
-              <span className="text-[10px] uppercase tracking-widest opacity-40 font-bold mt-0.5">Propulsé par Gemini 3.0</span>
+              <span className="text-xs text-[var(--lumina-text-secondary)] mt-0.5">Propulsé par Gemini 3.0</span>
             </div>
-            <button onClick={onClose} className="btn-action !p-1.5 focus:bg-black/10 dark:focus:bg-white/10">
-              <X size={18} />
+            <button onClick={onClose} aria-label="Fermer l’assistant IA" className="reader-icon text-[var(--lumina-text-secondary)]">
+              <X className="w-5 h-5" />
             </button>
           </div>
 
           <div className="flex flex-col gap-2">
             {/* Persona Selector */}
-            <div className={`relative rounded-[2px] ${inputBg}`}>
+            <div className="relative rounded-[2px]">
               <select
+                aria-label="Personnalité de l’assistant"
                 value={currentPersona.id}
                 onChange={handlePersonaChange}
-                className="w-full bg-transparent p-2 text-xs font-medium appearance-none outline-none cursor-pointer"
+                className="w-full min-h-[44px] p-2 pr-8 text-xs font-medium appearance-none cursor-pointer"
               >
                 {PERSONAS.map(p => (
-                  <option key={p.id} value={p.id} className={isLight ? 'bg-white text-black' : 'bg-slate-800 text-white'}>
+                  <option key={p.id} value={p.id}>
                     {p.name}
                   </option>
                 ))}
               </select>
-              <ChevronDown size={14} className="absolute right-2 top-2.5 pointer-events-none opacity-50" />
+              <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--lumina-text-secondary)]" />
             </div>
 
             {/* Model Selector Menu */}
-            <div className={`relative rounded-[2px] ${inputBg}`}>
+            <div className="relative rounded-[2px]">
               <select
+                aria-label="Modèle de l’assistant"
                 value={model}
                 onChange={(e) => setModel(e.target.value as AiModel)}
-                className="w-full bg-transparent p-2 text-xs font-medium appearance-none outline-none cursor-pointer"
+                className="w-full min-h-[44px] p-2 pr-8 text-xs font-medium appearance-none cursor-pointer"
               >
-                <option value={AiModel.FLASH_3_0} className={isLight ? 'bg-white text-black' : 'bg-slate-800 text-white'}>Modèle: Gemini 3.0 Flash (Optimisé)</option>
-                <option value={AiModel.FLASH_2_5} className={isLight ? 'bg-white text-black' : 'bg-slate-800 text-white'}>Modèle: Gemini 2.5 Flash (Rapide)</option>
-                <option value={AiModel.PRO_3_0} className={isLight ? 'bg-white text-black' : 'bg-slate-800 text-white'}>Modèle: Gemini 3.0 Pro (Intelligent)</option>
+                <option value={AiModel.FLASH_3_0}>Modèle: Gemini 3.0 Flash (Optimisé)</option>
+                <option value={AiModel.FLASH_2_5}>Modèle: Gemini 2.5 Flash (Rapide)</option>
+                <option value={AiModel.PRO_3_0}>Modèle: Gemini 3.0 Pro (Intelligent)</option>
               </select>
-              <ChevronDown size={14} className="absolute right-2 top-2.5 pointer-events-none opacity-50" />
+              <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--lumina-text-secondary)]" />
             </div>
           </div>
 
-          <div className="text-[10px] opacity-60 leading-tight">
+          <div className="text-xs text-[var(--lumina-text-secondary)] leading-tight">
             {currentPersona.description}
           </div>
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 font-light">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.map((msg, idx) => (
             <div key={idx} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''} fly-enter-active`}>
               <div className={`
                 w-8 h-8 rounded-[2px] flex items-center justify-center flex-shrink-0
-                ${msg.role === 'model' ? 'bg-[var(--lumina-accent-muted)] text-[var(--lumina-accent)]' : (isLight ? 'bg-gray-200 text-gray-600' : 'bg-gray-700 text-gray-300')}
+                ${msg.role === 'model' ? 'bg-[var(--lumina-accent-muted)] text-[var(--lumina-accent)]' : 'bg-[var(--lumina-hover-bg)] text-[var(--lumina-text-secondary)]'}
               `}>
                 {msg.role === 'model' ? <Bot size={16} /> : <User size={16} />}
               </div>
               <div className={`
                 max-w-[85%] rounded-[2px] px-4 py-2 text-sm leading-relaxed whitespace-pre-line
                 ${msg.role === 'user'
-                  ? 'bg-[var(--lumina-accent)] text-white'
-                  : `${isLight ? 'bg-black/5 text-gray-800' : 'bg-white/10 text-gray-200'}`
+                  ? 'bg-[var(--lumina-accent)] text-[var(--lumina-accent-fg)]'
+                  : 'bg-[var(--lumina-hover-bg)] text-[var(--lumina-text-primary)]'
                 }
               `}>
                 {msg.text}
@@ -203,9 +203,9 @@ const AiPanel: React.FC<AiPanelProps> = ({ isOpen, onClose, currentPageText, pdf
               <div className="w-8 h-8 rounded-[2px] bg-[var(--lumina-accent-muted)] text-[var(--lumina-accent)] flex items-center justify-center animate-pulse">
                 <Sparkles size={16} />
               </div>
-              <div className={`${isLight ? 'bg-black/5' : 'bg-white/10'} rounded-[2px] px-4 py-3 flex items-center gap-2`}>
+              <div className="bg-[var(--lumina-hover-bg)] text-[var(--lumina-text-primary)] rounded-[2px] px-4 py-3 flex items-center gap-2">
                 <Loader2 size={14} className="animate-spin" />
-                <span className="text-xs opacity-70">Réflexion ({currentPersona.name})...</span>
+                <span className="text-xs">Réflexion ({currentPersona.name})...</span>
               </div>
             </div>
           )}
@@ -213,7 +213,7 @@ const AiPanel: React.FC<AiPanelProps> = ({ isOpen, onClose, currentPageText, pdf
         </div>
 
         {/* Input */}
-        <div className={`p-3 border-t flex-shrink-0 ${isLight ? 'border-gray-200' : 'border-gray-700'}`}>
+        <div className="p-3 border-t border-[var(--lumina-filet)] flex-shrink-0">
           <div className="relative flex items-center">
             <textarea
               value={input}
@@ -225,21 +225,19 @@ const AiPanel: React.FC<AiPanelProps> = ({ isOpen, onClose, currentPageText, pdf
                 }
               }}
               placeholder="Posez une question..."
-              className={`
-                w-full pl-4 pr-12 py-3 rounded-[2px] resize-none text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all font-light
-                ${!isLight ? 'bg-black/20 text-white placeholder-gray-500 focus:bg-black/30' : 'bg-gray-100 text-gray-800 placeholder-gray-400 focus:bg-white'}
-              `}
+              className="w-full pl-4 pr-16 py-3 rounded-[2px] resize-none text-sm border-[var(--lumina-filet)] transition-colors"
               rows={1}
               style={{ minHeight: '44px', maxHeight: '120px' }}
             />
             <button
               onClick={handleSend}
+              aria-label="Envoyer la question"
               disabled={!input.trim() || loading}
               className={`
-                absolute right-2 p-2 rounded-[2px] transition-all duration-300
+                reader-ai-send absolute right-2 min-w-[44px] min-h-[44px] inline-flex items-center justify-center p-2 rounded-[2px] transition-colors duration-300
                 ${!input.trim() || loading
-                  ? 'text-gray-400 cursor-not-allowed'
-                  : 'bg-[var(--lumina-accent)] text-white hover:bg-[var(--lumina-accent-hover)] transform hover:scale-105'
+                  ? 'text-[var(--lumina-text-secondary)] cursor-not-allowed'
+                  : 'bg-[var(--lumina-accent)] text-[var(--lumina-accent-fg)]'
                 }
               `}
             >

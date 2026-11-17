@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Annotation } from '../types';
+import { Trash2 } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ANNOTATION POPOVER
@@ -44,12 +45,12 @@ const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ annotation, onUpd
     return (
         <div
             ref={popoverRef}
-            className="absolute z-50 w-56 rounded-lg shadow-2xl border overflow-hidden"
+            className="absolute z-50 w-56 rounded-[2px] border overflow-hidden"
             style={{
                 left: `${Math.min(annotation.x, 75)}%`,
                 top: `${annotation.y + 3}%`,
                 backgroundColor: 'var(--lumina-bg-secondary, #f4f4f5)',
-                borderColor: 'var(--lumina-border, #d4d4d8)',
+                borderColor: 'var(--lumina-filet-fort)',
             }}
             onClick={(e) => e.stopPropagation()}
         >
@@ -86,17 +87,18 @@ const AnnotationPopover: React.FC<AnnotationPopoverProps> = ({ annotation, onUpd
             />
 
             {/* Actions */}
-            <div className="flex items-center justify-end gap-1 px-2 py-1.5 border-t" style={{ borderColor: 'var(--lumina-border, #d4d4d8)' }}>
+            <div className="flex items-center justify-end gap-1 px-2 py-1.5 border-t" style={{ borderColor: 'var(--lumina-filet-fort)' }}>
                 <button
                     onClick={() => {
                         onDelete(annotation.id);
                         onClose();
                     }}
-                    className="px-2 py-1 text-xs rounded-md hover:opacity-80 transition-opacity"
-                    style={{ color: '#DC2626' }}
+                    className="inline-flex items-center justify-center gap-1 px-2 py-1 text-xs rounded-[2px] underline underline-offset-4 hover:opacity-80 transition-opacity"
+                    style={{ color: 'var(--lumina-text-primary)' }}
                     title="Supprimer"
                 >
-                    🗑 Supprimer
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Supprimer
                 </button>
             </div>
         </div>

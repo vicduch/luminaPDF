@@ -41,19 +41,17 @@ const OutlinePanel: React.FC<OutlinePanelProps> = ({ isOpen, onClose, onItemClic
     >
       {/* En-tête éditorial sans bordure dure */}
       <div
-        className="flex items-center justify-between px-4 py-3"
+        className="flex items-center justify-between pl-[1.35rem] pr-4 pt-6 pb-3"
       >
-        <div className="flex items-center gap-2 font-semibold text-xl" style={{ fontFamily: 'var(--font-display)' }}>
-          <span>Table des matières</span>
-        </div>
+        <h2>Table des matières</h2>
         <button
           type="button"
           onClick={close}
-          className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] -mr-2 rounded-[2px] transition-colors"
+          className="reader-icon -mr-2 transition-colors"
           style={{ color: 'var(--lumina-text-secondary)' }}
           aria-label="Fermer la table des matières"
         >
-          <X className="w-4 h-4" />
+          <X className="w-5 h-5" />
         </button>
       </div>
 
@@ -61,7 +59,6 @@ const OutlinePanel: React.FC<OutlinePanelProps> = ({ isOpen, onClose, onItemClic
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 custom-outline-container">
         <Outline
           onItemClick={onItemClick}
-          className="text-sm space-y-1"
           onLoadError={(error) => console.warn('Outline load error:', error)}
         />
         <div className="hidden only:flex flex-col items-center justify-center h-40 text-center p-4" style={{ color: 'var(--lumina-text-secondary)' }}>
