@@ -2,8 +2,23 @@
   "version": 1,
   "projet": "LuminaPDF",
   "cle": "LUM",
-  "prochain_id": 18,
+  "prochain_id": 19,
   "taches": [
+    {
+      "id": "LUM-18",
+      "statut": "a_valider",
+      "priorite": "moyenne",
+      "titre": "Peaufiner la typographie, les espacements et les panneaux (audit éditorial croisé)",
+      "contrat": "Lots 1 et 2 de l'audit croisé Opus/Hydrogen du 17/11, validés par l'utilisateur : présentation seule, identité OneLearn et invariants AGENTS.md inchangés. Exclus : refonte clavier/tactile des notes, :active tactile, Firefox, nettoyage des jetons invisibles. Parcours assisté UX.",
+      "reste": [
+        "Regard utilisateur sur le lot 2 (PC et tablette) : sommaire, petites lignes de la bibliothèque, barre de progression fine, assistant IA, fenêtre des notes.",
+        "Non observés : sous-niveaux du sommaire, fenêtre d'une note, liens internes d'un PDF ; aucun essai Xiaomi ni PWA."
+      ],
+      "relais": {
+        "date": "2026-11-17",
+        "texte": "Worker fresh Sol high, six fichiers de présentation (index.css, Toolbar, OutlinePanel, RecentFiles, AiPanel, AnnotationLayer), delta tests vide, CRLF préservés. Gate post-run : seuls signalements = trois fichiers préexistants CRLF autorisés. Parent : tsc OK, build temporaire OK ; liseuse 21/21, barres 40/40, reader 8/8, regressions 9/9, ux-recovery 25/25, storage 26/26. Mesures Edge headless 800×1280 et 1440×900 : titres de groupe 8 px partout, sommaire 14,5 px, onglet sans chevauchement, titres de panneaux 22 px, ambiances non tronquées, méta 13 px, pied 14 px aligné, assistant Nuit sur jetons (contrastes ≥ 4,77:1 sur 18 palettes, calculés). Outils déborde encore de 18 px en tablette portrait (71 avant). Sous-niveaux du sommaire et fenêtre des notes non observés (absents des fixtures). Pas d'essai Xiaomi ni PWA. Commit et envoi sur master (vicduch/luminaPDF) autorisés par l'utilisateur le 17/11 : deux commits style, seules nos retouches indexées (CRLF préexistants laissés dans l'arbre)."
+      }
+    },
     {
       "id": "LUM-17",
       "statut": "a_valider",

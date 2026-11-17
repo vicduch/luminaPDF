@@ -357,7 +357,7 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
                   <div
                     role="region"
                     aria-label="Ambiances de lecture"
-                    className="absolute right-0 top-full mt-2 w-72 rounded-[2px] p-3 z-50 grid grid-cols-3 gap-1.5"
+                    className="absolute right-0 top-full mt-2 w-[min(18rem,calc(100vw-2rem))] rounded-[2px] p-3 z-50 grid grid-cols-2 gap-1.5"
                     style={{
                       backgroundColor: 'var(--lumina-toolbar-bg)',
                     }}
@@ -381,10 +381,11 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
                               ? {
                                   backgroundColor: 'transparent',
                                   color: 'var(--lumina-accent)',
-                                  outline: '1.5px solid var(--lumina-accent)',
+                                  border: '1.5px solid var(--lumina-accent)',
                                 }
                               : {
                                   color: 'var(--lumina-text-primary)',
+                                  border: '1.5px solid transparent',
                                 }
                           }
                         >
@@ -399,7 +400,7 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
                           >
                             Aa
                           </span>
-                          <span className="truncate">{item.name}</span>
+                          <span>{item.name}</span>
                         </button>
                       );
                     })}
@@ -497,7 +498,7 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1 space-y-1">
                     <span
-                      className="block text-xs"
+                      className="block text-[13px]"
                       style={{ color: 'var(--lumina-text-secondary)' }}
                     >
                       Reprendre la lecture · {formatDate(heroFile.lastVisited)}
@@ -530,7 +531,7 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
                 </div>
 
                 <div className="space-y-2 max-w-md">
-                  <div className="flex items-center justify-between text-xs font-medium" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  <div className="flex items-center justify-between text-[13px] font-medium" style={{ fontVariantNumeric: 'tabular-nums' }}>
                     <span
                       style={{ color: 'var(--lumina-text-secondary)' }}
                     >
@@ -545,11 +546,11 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
 
                   {getProgressPercent(heroFile) !== null && (
                     <div
-                      className="w-full h-1 rounded-[2px] overflow-hidden"
-                      style={{ backgroundColor: 'var(--lumina-hover-bg)' }}
+                      className="w-full h-px relative"
+                      style={{ backgroundColor: 'var(--lumina-filet-fort)' }}
                     >
                       <div
-                        className="h-full rounded-[2px] transition-all duration-200"
+                        className="absolute top-1/2 -translate-y-1/2 h-[2px] transition-all duration-200"
                         style={{
                           width: `${getProgressPercent(heroFile)}%`,
                           backgroundColor: 'var(--lumina-accent)',
@@ -620,7 +621,7 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
                         {file.name}
                       </h3>
 
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs" style={{ color: 'var(--lumina-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13px]" style={{ color: 'var(--lumina-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
                         <span
                           className="whitespace-nowrap"
                         >
@@ -634,7 +635,7 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
                     <div className="col-start-2 sm:col-start-auto flex items-center gap-1">
                       <button type="button" aria-label={`Ouvrir ${file.name}`}
                         onClick={(event) => { event.stopPropagation(); void handleOpen(file); }}
-                        className="min-h-[44px] px-3 rounded-[2px] text-sm font-semibold"
+                        className="min-h-[44px] px-0 sm:px-3 rounded-[2px] text-sm font-semibold"
                         style={{ color: 'var(--lumina-accent)' }}>
                         Ouvrir
                       </button>
@@ -674,7 +675,7 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
             onClick={() => fileInputRef.current?.click()}
             className="library-dropzone px-0 py-5 cursor-pointer transition-colors duration-200"
             style={{
-              backgroundColor: isDragging ? 'var(--lumina-active-bg)' : 'transparent',
+              backgroundColor: isDragging ? 'var(--lumina-active-bg)' : undefined,
               borderTop: `1px dashed ${isDragging ? 'var(--lumina-accent)' : 'var(--lumina-filet-fort)'}`,
               borderBottom: `1px dashed ${isDragging ? 'var(--lumina-accent)' : 'var(--lumina-filet-fort)'}`,
             }}
@@ -710,16 +711,16 @@ const RecentFiles: React.FC<RecentFilesProps> = ({
           </div>
         </section>
       </main>
-      <footer className="max-w-5xl mx-auto px-4 sm:px-6 pb-8 text-xs space-y-2" style={{ color: 'var(--lumina-text-secondary)' }}>
+      <footer className="max-w-5xl mx-auto px-4 sm:px-6 pb-8 space-y-2" style={{ color: 'var(--lumina-text-secondary)' }}>
         <p className="max-w-2xl leading-relaxed">Documents et progression dans ce navigateur uniquement. Conservez vos fichiers d’origine : ce stockage n’est pas une sauvegarde indépendante.</p>
-        <p className="text-xs">Services facultatifs · aucune synchronisation entre appareils garantie.</p>
-        <div className="flex flex-wrap gap-3">
+        <p>Services facultatifs · aucune synchronisation entre appareils garantie.</p>
+        <div className="flex flex-wrap gap-6">
           <button type="button" onClick={() => void handleCloud()} disabled={!cloudConfigured || remoteBusy}
-            className="min-h-[44px] px-3 rounded-[2px] text-xs disabled:opacity-60" style={{ color: 'var(--lumina-text-primary)' }}>
+            className="min-h-[44px] px-0 rounded-[2px] disabled:opacity-60" style={{ color: 'var(--lumina-text-primary)' }}>
             {cloudUser ? 'Déconnexion' : 'Connexion Cloud'}
           </button>
           <button type="button" onClick={() => void handleDriveOpen()} disabled={!driveConfigured || remoteBusy}
-            className="min-h-[44px] px-3 rounded-[2px] text-xs disabled:opacity-60" style={{ color: 'var(--lumina-text-primary)' }}>
+            className="min-h-[44px] px-0 rounded-[2px] disabled:opacity-60" style={{ color: 'var(--lumina-text-primary)' }}>
             Google Drive
           </button>
         </div>
