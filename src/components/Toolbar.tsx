@@ -60,10 +60,7 @@ export const ReaderBottomDock: React.FC<ReaderBottomDockProps> = ({
 
   return (
     <div
-      className="reader-dock-bar flex-none z-30 select-none"
-      style={{
-        backgroundColor: 'transparent',
-      }}
+      className="reader-dock-bar absolute inset-x-0 bottom-0 z-30 select-none"
     >
       <nav
         aria-label="Navigation dans le document"
@@ -198,7 +195,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
       role="toolbar"
       aria-label="Commandes de lecture"
       hidden={!isVisible}
-      className="reader-topbar z-30 w-full flex-none"
+      className="reader-topbar w-full"
     >
       <div className="reader-topbar-layout">
         <button type="button" onClick={onHome} aria-label="Revenir à la bibliothèque"

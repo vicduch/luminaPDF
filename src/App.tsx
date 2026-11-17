@@ -619,7 +619,7 @@ function App() {
     return (
         <div
             className={`
-        lumina-app flex flex-col h-[100dvh] w-full overflow-hidden transition-colors duration-200
+        lumina-app relative flex flex-col h-[100dvh] w-full overflow-hidden transition-colors duration-200
         ${isDarkVariant(themeVariant) ? 'dark' : ''}
         bg-[var(--lumina-bg)]
       `}
@@ -630,81 +630,6 @@ function App() {
         >
 
             {storageError && <div role="alert" className="flex-none p-3 bg-[var(--lumina-bg-secondary)] text-[var(--lumina-text)] border-b border-[var(--lumina-border)]">{storageError}</div>}
-
-            {/* 1. Header / Toolbar */}
-            {file && (
-                <div className="flex-none relative">
-                    {/* Floating button to restore toolbar when hidden */}
-                    {!isToolbarVisible && (
-                        <button
-                            onClick={() => setIsToolbarVisible(true)}
-                            className="reader-restore absolute top-0 left-1/2 -translate-x-1/2 z-50"
-                            style={{
-                                backgroundColor: 'var(--lumina-bg-secondary)',
-                                borderLeft: '1px solid var(--lumina-border)',
-                                borderRight: '1px solid var(--lumina-border)',
-                                borderBottom: '1px solid var(--lumina-border)',
-                            }}
-                            aria-label="Afficher la barre de lecture"
-                            title="Afficher la barre d'outils (H)"
-                        >
-                            <svg width="16" height="8" viewBox="0 0 16 8" fill="none">
-                                <path d="M2 2L8 6L14 2" stroke="var(--lumina-text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                        </button>
-                    )}
-                    <Toolbar
-                        file={file}
-                        numPages={numPages}
-                        pageNumber={pageNumber}
-                        scale={scale}
-                        theme={theme}
-                        viewMode={viewMode}
-                        scrollMode={scrollMode}
-                        isFullscreen={isFullscreen}
-                        isVisible={isToolbarVisible}
-                        isOutlineOpen={isOutlineOpen}
-                        isAnnotationMode={isAnnotationMode}
-                        annotationColor={annotationColor}
-                        setPageNumber={handleNavigate}
-                        setScale={setScale}
-                        onFitToWidth={handleFitToWidth}
-                        setTheme={setTheme}
-                        themeVariant={themeVariant}
-                        setThemeVariant={setThemeVariant}
-                        setViewMode={setViewMode}
-                        setScrollMode={setScrollMode}
-                        setAnnotationColor={setAnnotationColor}
-                        toggleFullscreen={() => {
-                            if (!document.fullscreenElement) {
-                                document.documentElement.requestFullscreen();
-                                setIsFullscreen(true);
-                            } else {
-                                document.exitFullscreen();
-                                setIsFullscreen(false);
-                            }
-                        }}
-                        toggleOutline={() => setIsOutlineOpen(!isOutlineOpen)}
-                        toggleAnnotationMode={() => setIsAnnotationMode(!isAnnotationMode)}
-                        onFileChange={handleFileChange}
-                        toggleAiPanel={() => setIsAiPanelOpen(!isAiPanelOpen)}
-                        toggleVisibility={() => setIsToolbarVisible(!isToolbarVisible)}
-                        onHome={() => {
-                            flushReadingState();
-                            ++openingRef.current;
-                            restoredRef.current = false;
-                            readingStateRef.current = null;
-                            setFile(null);
-                            setIsOpening(false);
-                            setCurrentFileId(null);
-                            setAnnotations([]);
-                            setIsViewerReady(false);
-                        }}
-                        recentFiles={recentFiles.slice(0, 5).map(f => ({ id: f.id, name: f.name, lastVisited: f.lastVisited, pageNumber: f.pageNumber, numPages: f.numPages }))}
-                        onOpenRecentFile={handleOpenRecentFile}
-                    />
-                </div>
-            )}
 
             {/* 2. Main Workspace */}
             <div className="flex-1 relative overflow-hidden">
@@ -720,7 +645,78 @@ function App() {
                     />
                 ) : (
                     <div className="w-full h-full relative flex flex-row">
-                        <div className={`reader-workspace flex-1 min-w-0 relative h-full overflow-hidden ${isToolbarVisible ? 'reader-with-gutters' : ''}`}>
+                        <div className="reader-workspace flex-1 min-w-0 relative h-full overflow-hidden">
+                            <div className="absolute inset-x-0 top-0">
+                                {/* Floating button to restore toolbar when hidden */}
+                                {!isToolbarVisible && (
+                                    <button
+                                        onClick={() => setIsToolbarVisible(true)}
+                                        className="reader-restore absolute top-0 left-1/2 -translate-x-1/2 z-50"
+                                        style={{
+                                            backgroundColor: 'var(--lumina-bg-secondary)',
+                                            borderLeft: '1px solid var(--lumina-border)',
+                                            borderRight: '1px solid var(--lumina-border)',
+                                            borderBottom: '1px solid var(--lumina-border)',
+                                        }}
+                                        aria-label="Afficher la barre de lecture"
+                                        title="Afficher la barre d'outils (H)"
+                                    >
+                                        <svg width="16" height="8" viewBox="0 0 16 8" fill="none">
+                                            <path d="M2 2L8 6L14 2" stroke="var(--lumina-text-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                        </svg>
+                                    </button>
+                                )}
+                                <Toolbar
+                                    file={file}
+                                    numPages={numPages}
+                                    pageNumber={pageNumber}
+                                    scale={scale}
+                                    theme={theme}
+                                    viewMode={viewMode}
+                                    scrollMode={scrollMode}
+                                    isFullscreen={isFullscreen}
+                                    isVisible={isToolbarVisible}
+                                    isOutlineOpen={isOutlineOpen}
+                                    isAnnotationMode={isAnnotationMode}
+                                    annotationColor={annotationColor}
+                                    setPageNumber={handleNavigate}
+                                    setScale={setScale}
+                                    onFitToWidth={handleFitToWidth}
+                                    setTheme={setTheme}
+                                    themeVariant={themeVariant}
+                                    setThemeVariant={setThemeVariant}
+                                    setViewMode={setViewMode}
+                                    setScrollMode={setScrollMode}
+                                    setAnnotationColor={setAnnotationColor}
+                                    toggleFullscreen={() => {
+                                        if (!document.fullscreenElement) {
+                                            document.documentElement.requestFullscreen();
+                                            setIsFullscreen(true);
+                                        } else {
+                                            document.exitFullscreen();
+                                            setIsFullscreen(false);
+                                        }
+                                    }}
+                                    toggleOutline={() => setIsOutlineOpen(!isOutlineOpen)}
+                                    toggleAnnotationMode={() => setIsAnnotationMode(!isAnnotationMode)}
+                                    onFileChange={handleFileChange}
+                                    toggleAiPanel={() => setIsAiPanelOpen(!isAiPanelOpen)}
+                                    toggleVisibility={() => setIsToolbarVisible(!isToolbarVisible)}
+                                    onHome={() => {
+                                        flushReadingState();
+                                        ++openingRef.current;
+                                        restoredRef.current = false;
+                                        readingStateRef.current = null;
+                                        setFile(null);
+                                        setIsOpening(false);
+                                        setCurrentFileId(null);
+                                        setAnnotations([]);
+                                        setIsViewerReady(false);
+                                    }}
+                                    recentFiles={recentFiles.slice(0, 5).map(f => ({ id: f.id, name: f.name, lastVisited: f.lastVisited, pageNumber: f.pageNumber, numPages: f.numPages }))}
+                                    onOpenRecentFile={handleOpenRecentFile}
+                                />
+                            </div>
                             {isOpening ? <p className="p-10" role="status">Ouverture du document...</p> : <PdfViewer
                                 key={documentSession}
                                 restorePage={restorePage}
@@ -749,6 +745,12 @@ function App() {
                                 onToggleOutline={() => setIsOutlineOpen(!isOutlineOpen)}
                                 onToggleToolbar={() => setIsToolbarVisible(prev => !prev)}
                             />}
+                            <ReaderBottomDock
+                                numPages={numPages}
+                                pageNumber={pageNumber}
+                                isVisible={isToolbarVisible}
+                                setPageNumber={handleNavigate}
+                            />
                         </div>
 
                         <div style={{ display: isAiPanelOpen ? 'contents' : 'none' }}>
@@ -763,15 +765,6 @@ function App() {
                     </div>
                 )}
             </div>
-
-            {file && (
-                <ReaderBottomDock
-                    numPages={numPages}
-                    pageNumber={pageNumber}
-                    isVisible={isToolbarVisible}
-                    setPageNumber={handleNavigate}
-                />
-            )}
 
             {/* 3. Drag & Drop Overlay */}
             <div

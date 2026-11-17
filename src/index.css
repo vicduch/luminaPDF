@@ -485,24 +485,34 @@ body {
   --lumina-grain-light: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n' x='0' y='0' width='100%25' height='100%25' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.12  0 0 0 0 0.11  0 0 0 0 0.10  4 0 0 0 -2'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)' opacity='.05'/%3E%3C/svg%3E");
   --lumina-grain-dark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n' x='0' y='0' width='100%25' height='100%25' color-interpolation-filters='sRGB'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0.90  0 0 0 0 0.87  0 0 0 0 0.83  4 0 0 0 -2'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)' opacity='.03'/%3E%3C/svg%3E");
 }
-.lumina-app { --lumina-grain: var(--lumina-grain-light); background-image: var(--lumina-grain); }
+.lumina-app {
+  --lumina-grain: var(--lumina-grain-light);
+  --reader-fit-inline: 56px;
+  --reader-topbar-height: 52px;
+  --reader-dock-height: 48px;
+  background-image: var(--lumina-grain);
+}
 .lumina-app.dark { --lumina-grain: var(--lumina-grain-dark); }
 [hidden] { display: none !important; }
 
 /* Shared stacking order: folio 30 < outline 40 < tools 50 < edge tabs 60.
    App's header/workspace wrappers must not isolate their fixed drawers in stacking contexts. */
-/* The gutters belong to the workspace, never to the transformed PDF or its gesture container. */
-.reader-with-gutters { padding-inline: 56px; }
+/* Réserve d'ajustement constante, sans réduire la zone de lecture ni ses gestes.
+   Seule la rangée d'en-tête crée un niveau : les tiroirs/onglets restent dans la pile partagée. */
 .reader-workspace { box-sizing: border-box; }
 .pdf-viewer-container { background-image: var(--lumina-grain); }
-.reader-topbar, .reader-dock-bar { background: var(--lumina-grain), var(--lumina-app-bg); }
+.reader-topbar, .reader-topbar-layout, .reader-dock-bar, .reader-edge-tab {
+  background: var(--lumina-grain), var(--lumina-app-bg);
+}
 .reader-topbar-layout {
+  position: relative;
+  z-index: 30;
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 44px;
   gap: 12px;
   align-items: center;
   padding: 4px 12px;
-  min-height: 52px;
+  min-height: var(--reader-topbar-height);
 }
 .reader-document-position {
   display: flex;
@@ -568,7 +578,6 @@ body {
   writing-mode: vertical-rl;
   color: var(--lumina-text-secondary);
   font-size: 15px;
-  background: transparent;
   border-radius: 2px;
 }
 .reader-edge-left { left: 6px; transform: translateY(-50%) rotate(180deg); }
@@ -626,6 +635,7 @@ body {
 }
 
 /* A single compact row; the thin progress track retains its full 44 px target. */
+.reader-dock-bar { min-height: var(--reader-dock-height); }
 .reader-dock {
   display: grid;
   position: relative;
@@ -697,13 +707,17 @@ body {
 :is(button, input, select, textarea, [role="button"]):focus-visible { outline: 2px solid var(--lumina-accent); outline-offset: 2px; }
 @media (hover: hover) {
   :is(.reader-topbar, .reader-outline, .library-view) button:not(:disabled):not(.library-primary):hover { background-color: var(--lumina-hover-bg); }
+  .reader-topbar .reader-edge-tab:not(:disabled):not(.library-primary):hover {
+    background-color: var(--lumina-app-bg);
+    background-image: linear-gradient(var(--lumina-hover-bg), var(--lumina-hover-bg)), var(--lumina-grain);
+  }
   .library-view .library-primary:hover { background-color: color-mix(in srgb, var(--lumina-accent) 84%, var(--lumina-text-primary)) !important; }
 }
 /* Immersion has no visible restore tab; its existing keyboard affordance is retained. */
 .reader-restore { width: 52px; height: 44px; opacity: 0; }
 .reader-restore:focus-visible { opacity: 1; }
 @media (max-width: 760px) {
-  .reader-with-gutters { padding-inline: 44px; }
+  .lumina-app { --reader-fit-inline: 44px; }
   .reader-edge-left { left: 0; }
   .reader-edge-right { right: 0; }
   .library-title { font-size: 30px; }
