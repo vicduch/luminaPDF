@@ -151,9 +151,23 @@ suite('G2 — zoom ancré sur les axes où le document dépasse', 600_000, async
       const doc = name === PAGED ? 'page' : 'column';
       const p = { x: before.page.left + before.page.width * 0.65, y: Math.max(before.zone.top + 80, Math.min(before.zone.bottom - 80, (before.page.top + before.page.bottom) / 2)) };
       assert.ok(p.x > before.zone.left && p.x < before.zone.right, 'curseur dans la zone');
-      const after = await zoomBy(r, 3, 1.8, p);
+      // LUM-17 : la zone occupe tout l'espace de lecture et la page ajustée garde sa taille ; la 1re impulsion peut donc
+      // laisser le document tenir en largeur (centré, G1/G2). G2 ancre seulement les axes où il dépasse : on amène d'abord
+      // le document à dépasser sur les deux axes, puis on mesure l'ancrage depuis cet état stabilisé.
+      await wheel(r, p, { dy: -100, ctrl: true });
+      const first = await settle(r, 3);
+      const fits = exceeds(first, doc);
+      if (!fits.x) assertCentered(first, doc, 'x', `1re impulsion ${name}: centré horizontalement (tient en largeur)`, 4);
+      if (!fits.y) assertCentered(first, doc, 'y', `1re impulsion ${name}: centré verticalement (tient en hauteur)`, 4);
+      const mid = await zoomBy(r, 3, 1.3, p);
+      assert.ok(exceeds(mid, doc).x && exceeds(mid, doc).y, `précondition : le document dépasse en x et en y avant la mesure ${JSON.stringify({ page: rounded(mid.page), zone: rounded(mid.zone) })}`);
+      const q = {
+        x: (Math.max(mid.page.left, mid.zone.left) + Math.min(mid.page.right, mid.zone.right)) / 2,
+        y: (Math.max(mid.page.top, mid.zone.top) + Math.min(mid.page.bottom, mid.zone.bottom)) / 2,
+      };
+      const after = await zoomBy(r, 3, 1.5, q);
       assert.ok(exceeds(after, doc).x && exceeds(after, doc).y, `précondition : le document agrandi dépasse sur les deux axes ${JSON.stringify(rounded(after.zone))}`);
-      anchored(before, after, p, doc, `Ctrl+molette ${name}`);
+      anchored(mid, after, q, doc, `Ctrl+molette ${name}`);
     });
   }
 
@@ -770,7 +784,7 @@ suite('G7 — molette et trackpad', 900_000, async scenario => {
     s = await place(r, 3, 'bottom', 100);
     await pause(700);
     await wheel(r, p, { dy: 400 });
-    await until(async () => { const t = await snap(r, 3); return { ok: t?.page && edgeOk(gaps(t).bottom), info: rounded(t?.page) }; }, 'défilement jusqu’au bas');
+    await until(async () => { const t = await snap(r, 3); return { ok: t?.page && edgeOk(gaps(t).bottom, 'bottom'), info: rounded(t?.page) }; }, 'défilement jusqu’au bas');
     await stays(r, 3, 'impulsion commencée avant le bas : défile sans tourner', 900);
     // Bas atteint : une nouvelle impulsion tourne ; page suivante affichée à son haut.
     await wheel(r, p, { dy: 150 });

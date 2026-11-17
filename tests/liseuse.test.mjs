@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launch, openReader, eventually } from './reader-cdp.mjs';
 import { createSession, goHome, goTo, counter, dominantPage } from './storage-cdp.mjs';
-import { snap } from './helpers/gesture-kit.mjs';
+import { snap, settle } from './helpers/gesture-kit.mjs';
 import { tabTo, pageAt } from './helpers/ux-cdp.mjs';
 import {
   CONTINUOUS, PAGED, TOOLS, chooseMode, openToolsPanel, closeToolsPanel, modeStates,
@@ -211,9 +211,11 @@ for (const [label, width, height] of SIZES) {
         assert.ok(t.width >= 44 && t.height >= 44, `${name} cible ≥ 44×44 (reçu ${t.width.toFixed(1)}×${t.height.toFixed(1)})`);
         assert.ok(t.container, '.pdf-viewer-container présent');
       }
-      const c = tabs.sommaire.container;
-      assert.ok(tabs.sommaire.right <= c.left + 1, `Sommaire entièrement à gauche du conteneur de lecture (droite ${tabs.sommaire.right.toFixed(1)} ≤ gauche du conteneur ${c.left.toFixed(1)})`);
-      assert.ok(tabs.outils.left >= c.right - 1, `Outils entièrement à droite du conteneur de lecture (gauche ${tabs.outils.left.toFixed(1)} ≥ droite du conteneur ${c.right.toFixed(1)})`);
+      // LUM-17 (B3, option A) : les onglets sont au-dessus de la zone de lecture, mais ne recouvrent jamais la page ajustée.
+      const page = (await settle(r, 1)).page;
+      assert.ok(page, 'page 1 ajustée visible');
+      assert.ok(tabs.sommaire.right <= page.left + 1, `Sommaire entièrement à gauche de la page ajustée (droite ${tabs.sommaire.right.toFixed(1)} ≤ gauche de la page ${page.left.toFixed(1)})`);
+      assert.ok(tabs.outils.left >= page.right - 1, `Outils entièrement à droite de la page ajustée (gauche ${tabs.outils.left.toFixed(1)} ≥ droite de la page ${page.right.toFixed(1)})`);
       assert.equal(await r.control('button', OUTLINE, function () { return `${this.getAttribute('aria-controls')}/${this.getAttribute('aria-expanded')}`; }), 'reader-outline/false');
       assert.equal(await r.control('button', TOOLS, function () { return `${this.getAttribute('aria-controls')}/${this.getAttribute('aria-expanded')}`; }), 'reader-tools/false');
 
@@ -496,7 +498,10 @@ for (const [label, width, height] of SIZES) {
       assert.ok(field.shown && field.inViewport, `champ entièrement visible : ${JSON.stringify(field)}`);
       assert.ok(field.width >= 44 && field.height >= 44, `champ ≥ 44×44 (reçu ${field.width.toFixed(1)}×${field.height.toFixed(1)})`);
       assert.ok(field.container, '.pdf-viewer-container présent');
-      assert.ok(field.bottom <= field.container.top + 1, `champ au-dessus du haut de .pdf-viewer-container (bas ${field.bottom.toFixed(1)} ≤ haut ${field.container.top.toFixed(1)})`);
+      // LUM-17 (B3, option A) : le champ est au-dessus de la page ajustée (la zone de lecture passe désormais dessous).
+      const page = (await settle(r, 1)).page;
+      assert.ok(page, 'page 1 ajustée visible');
+      assert.ok(field.bottom <= page.top + 1, `champ au-dessus du haut de la page ajustée (bas ${field.bottom.toFixed(1)} ≤ haut de la page ${page.top.toFixed(1)})`);
       const title = await titleOf(r, FIXTURE_TITLE);
       assert.ok(title, `titre « ${FIXTURE_TITLE} » visible dans l'en-tête`);
       assert.ok(field.left >= title.left - 0.5, `champ à droite du bord gauche du titre (champ ${field.left.toFixed(1)} ≥ titre ${title.left.toFixed(1)})`);

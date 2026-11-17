@@ -106,10 +106,18 @@ export function gaps(s, doc = 'page') {
   return { left: d.left - z.left, right: z.right - d.right, top: d.top - z.top, bottom: z.bottom - d.bottom };
 }
 // G1 : bord atteint = au plus 24 px de vide, aucun contenu coupé (±2 px).
-export const edgeOk = gap => gap >= -EPS && gap <= MARGIN;
+// LUM-17 (B8, décision utilisateur) : sur l'axe vertical seulement, la zone passe sous les barres ; le bord atteint
+// se place au plus à « réserve + 24 px » et au moins à « réserve − 2 px » du bord de la zone (en-tête ≈ 52 px, pied ≈ 48 px,
+// mesurés en boîte noire, constants barres visibles ou masquées). L'horizontal est inchangé.
+export const RESERVE = { top: 52, bottom: 48 };
+export const edgeOk = (gap, side = null) => {
+  const reserve = RESERVE[side] ?? 0;
+  return gap >= reserve - EPS && gap <= reserve + MARGIN;
+};
 export function assertEdge(s, side, doc, label) {
   const g = gaps(s, doc);
-  assert.ok(edgeOk(g[side]), `${label}: bord ${side} du document à ${g[side].toFixed(1)} px du bord de la zone (attendu −${EPS}…${MARGIN}) ${JSON.stringify({ zone: rounded(s.zone), doc: rounded(s[doc]) })}`);
+  const reserve = RESERVE[side] ?? 0;
+  assert.ok(edgeOk(g[side], side), `${label}: bord ${side} du document à ${g[side].toFixed(1)} px du bord de la zone (attendu ${reserve - EPS}…${reserve + MARGIN}) ${JSON.stringify({ zone: rounded(s.zone), doc: rounded(s[doc]) })}`);
 }
 export function assertCentered(s, doc, axes, label, tol = 3) {
   const d = s[doc], z = s.zone;
@@ -245,6 +253,8 @@ export async function zoomBy(r, n, ratio, at = null) {
 
 // Place un bord de la page n par défilement programmatique du conteneur :
 // `away` = px de page encore cachés au-delà du bord de la zone (0 = bord contre le bord de la zone).
+// LUM-17 (B8) : sur l'axe vertical, « le bord de la zone » est le bord dégagé des barres (réserve haute/basse de RESERVE) :
+// `away = 0` vise la borne réelle de défilement (la boucle s'arrête quand le conteneur ne bouge plus) ; l'horizontal est inchangé.
 // Mesure par géométrie ; si le contrat borne la position (24 px), la boucle s’arrête à la borne.
 export async function place(r, n, side, away = 0, doc = 'page') {
   const horizontal = side === 'left' || side === 'right';
@@ -252,7 +262,7 @@ export async function place(r, n, side, away = 0, doc = 'page') {
   for (let i = 0; i < 8; i++) {
     const s = await snap(r, n);
     const d = s[doc], z = s.zone;
-    const delta = { left: z.left - d.left, right: d.right - z.right, top: z.top - d.top, bottom: d.bottom - z.bottom }[side] - away;
+    const delta = { left: z.left - d.left, right: d.right - z.right, top: z.top + RESERVE.top - d.top, bottom: d.bottom - (z.bottom - RESERVE.bottom) }[side] - away;
     if (Math.abs(delta) <= 1) break;
     const signed = side === 'left' || side === 'top' ? -delta : delta;
     const before = s.scroll[key];
