@@ -2,8 +2,22 @@
   "version": 1,
   "projet": "LuminaPDF",
   "cle": "LUM",
-  "prochain_id": 19,
+  "prochain_id": 20,
   "taches": [
+    {
+      "id": "LUM-19",
+      "statut": "a_valider",
+      "priorite": "moyenne",
+      "titre": "Garder le mode Jour ou Nuit choisi quand on change d'ambiance",
+      "contrat": "Demande utilisateur du 17/11 : un seul mode Jour/Nuit pour toutes les ambiances (bibliothèque, Outils, touche t, rechargement) ; remplace la mémoire par ambiance D-002. Format de préférences luminapdf-config-v2 inchangé. Parcours assisté.",
+      "reste": [
+        "Essai utilisateur ; envoi sur GitHub non encore autorisé."
+      ],
+      "relais": {
+        "date": "2026-11-17",
+        "texte": "Rouge avant (sonde Edge parent) : Nuit puis Sépia/Forêt/touche t/rechargement → Jour. Worker fresh Sol high, src/App.tsx seul (effet de resynchronisation D-002 retiré, handleCycleTheme sans changement de mode, initialiseur qui privilégie themeVariant), CRLF préservés, delta tests vide. Vert après : même sonde, mode conservé et restauré. tsc OK ; ux-recovery 25/25, liseuse 21/21, barres 40/40, reader 8/8, regressions 9/9, storage 26/26. Choix d'ambiance depuis la bibliothèque : même fonction, non sondé séparément. Commit local autorisé par l'utilisateur le 17/11 (retouche seule, CRLF préexistants exclus)."
+      }
+    },
     {
       "id": "LUM-18",
       "statut": "a_valider",

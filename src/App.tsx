@@ -65,8 +65,8 @@ function App() {
         }
         return AppTheme.LIGHT;
     });
-    // [D-002] Variant Persistence Map
-    const [themeVariants, setThemeVariants] = useState<Record<string, ThemeVariant>>(() => {
+    // Carte conservée pour la compatibilité du stockage.
+    const [, setThemeVariants] = useState<Record<string, ThemeVariant>>(() => {
         try {
             const saved = localStorage.getItem(CONFIG_KEY);
             if (saved) {
@@ -89,19 +89,15 @@ function App() {
     });
 
     const [themeVariant, setThemeVariant] = useState<ThemeVariant>(() => {
-        // Initial variant depends on current theme
-        // We can't access 'theme' state here easily in initializer as it might not be initialized if we don't rely on order.
-        // Actually we can read from localStorage again or just use a default. 
-        // Better to sync it in an effect or derive it? 
-        // We keep this state for easy access, but it should be synced with themeVariants[theme]
+        // Le mode est global ; la carte reste un repli pour les anciennes configurations.
         try {
             const saved = localStorage.getItem(CONFIG_KEY);
             if (saved) {
                 const config = JSON.parse(saved);
+                if (config.themeVariant) return config.themeVariant;
                 if (config.theme && config.themeVariants) {
                     return config.themeVariants[config.theme] || 'light';
                 }
-                if (config.themeVariant) return config.themeVariant;
             }
         } catch (e) { }
         return 'light';
@@ -324,10 +320,7 @@ function App() {
         const nextTheme = themes[nextIndex];
 
         setTheme(nextTheme);
-        // Sync variant for the new theme from persistent map
-        const nextVariant = themeVariants[nextTheme] || 'light';
-        setThemeVariant(nextVariant);
-    }, [theme, themeVariants]);
+    }, [theme]);
 
     // Annotation Handlers
     const handleAddAnnotation = useCallback((page: number, x: number, y: number) => {
@@ -418,16 +411,7 @@ function App() {
         initializeStorage().catch(() => {}).then(() => getRecentFiles()).then(setRecentFiles).catch(() => {});
     }, [file]); // Refresh when file changes (including back to null = home)
 
-    // Save theme changes and re-apply CSS custom properties
-    // [D-002] Update current variant when theme changes
-    useEffect(() => {
-        const preferred = themeVariants[theme] || 'light';
-        if (preferred !== themeVariant) {
-            setThemeVariant(preferred);
-        }
-    }, [theme]); // Only when theme changes
-
-    // [D-002] Update storage and variants map when variant changes
+    // Enregistrer l'ambiance et le mode global, puis appliquer leurs couleurs.
     useEffect(() => {
         setThemeVariants(prev => {
             const next = { ...prev, [theme]: themeVariant };
@@ -436,7 +420,7 @@ function App() {
             try {
                 localStorage.setItem(CONFIG_KEY, JSON.stringify({
                     theme,
-                    themeVariant, // Legacy fallback
+                    themeVariant, // Mode global
                     themeVariants: next
                 }));
             } catch (e) { console.warn('Failed to save theme config', e); }
